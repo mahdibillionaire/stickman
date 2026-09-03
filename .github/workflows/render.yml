@@ -180,20 +180,38 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
+
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
           cat << EOF > ~/.config/rclone/rclone.conf
           [engine]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $ENGINE_TOKEN_RAW
+          token = $ENGINE_TOKEN
 
           [data]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $DATA_TOKEN_RAW
+          token = $DATA_TOKEN
           EOF
 
       - name: Download Engine Scripts & Script Text
@@ -201,6 +219,8 @@ jobs:
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "tts_worker.py" --include "local_voice_engine.py" --include "voiceover_manager.py" --transfers 4
+          mkdir -p "Channels/$CHANNEL/voice"
+          rclone copy "data:Stickman Project/Channels/$CHANNEL/voice" "Channels/$CHANNEL/voice" --transfers 4 || true
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "script.txt" --include "*.wav" --transfers 8 || true
 
@@ -257,20 +277,38 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
+
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
           cat << EOF > ~/.config/rclone/rclone.conf
           [engine]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $ENGINE_TOKEN_RAW
+          token = $ENGINE_TOKEN
 
           [data]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $DATA_TOKEN_RAW
+          token = $DATA_TOKEN
           EOF
 
       - name: Download Engine Scripts & WAV Chunks
@@ -329,20 +367,38 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
+
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
           cat << EOF > ~/.config/rclone/rclone.conf
           [engine]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $ENGINE_TOKEN_RAW
+          token = $ENGINE_TOKEN
 
           [data]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $DATA_TOKEN_RAW
+          token = $DATA_TOKEN
           EOF
 
       - name: Download Engine Generator & Storyboard
@@ -400,20 +456,38 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
+
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
           cat << EOF > ~/.config/rclone/rclone.conf
           [engine]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $ENGINE_TOKEN_RAW
+          token = $ENGINE_TOKEN
 
           [data]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $DATA_TOKEN_RAW
+          token = $DATA_TOKEN
           EOF
 
       - name: Download Engine & All Workspace Assets
@@ -463,13 +537,22 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
           cat << EOF > ~/.config/rclone/rclone.conf
           [data]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $DATA_TOKEN_RAW
+          token = $DATA_TOKEN
           EOF
 
       - name: Download Timeline & Image Assets
@@ -535,20 +618,38 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
+
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
           cat << EOF > ~/.config/rclone/rclone.conf
           [engine]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $ENGINE_TOKEN_RAW
+          token = $ENGINE_TOKEN
 
           [data]
           type = drive
           client_id = $CLIENT_ID
           client_secret = $CLIENT_SECRET
           scope = drive
-          token = $DATA_TOKEN_RAW
+          token = $DATA_TOKEN
           EOF
 
       - name: Download Rendered Chunks & Master Audio
