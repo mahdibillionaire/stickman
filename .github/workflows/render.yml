@@ -16,8 +16,11 @@ on:
       channel_name:
         description: 'Channel to operate on'
         required: true
-        default: 'Stickman'
-        type: string
+        default: 'meo'
+        type: choice
+        options:
+          - meo
+          - stiky
       topic:
         description: 'Topic Name'
         required: false
