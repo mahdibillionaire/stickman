@@ -1,4 +1,4 @@
-﻿google-genai
+google-genai
 requests
 curl_cffi
 gradio_client
@@ -18,4 +18,7 @@ python-dotenv
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
+selenium
+seleniumbase
+undetected-chromedriver
 git+https://github.com/m-bain/whisperx.git
