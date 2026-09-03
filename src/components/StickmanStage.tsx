@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { 
   AbsoluteFill, 
   Img, 
@@ -43,7 +43,7 @@ export const StickmanStage: React.FC<StickmanStageProps> = ({ scene, durationInF
 
   return (
     <PaperTextureWrapper>
-      <AbsoluteFill style={{ backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
+      <AbsoluteFill style={{ backgroundColor: '#000000', overflow: 'hidden' }}>
         {/* 2K Main Stage Viewport — 100% Locked & Centered */}
         <AbsoluteFill
           style={{
