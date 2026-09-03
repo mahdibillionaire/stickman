@@ -1,0 +1,148 @@
+import { 
+  AbsoluteFill, 
+  useCurrentFrame, 
+  useVideoConfig, 
+  spring, 
+  interpolate, 
+  Img, 
+  OffthreadVideo,
+  staticFile as remotionStaticFile
+} from "remotion";
+import React from "react";
+import { CinematicTextureWrapper } from './CinematicTextureWrapper';
+const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+const staticFile = (path: string) => {
+    if (!path || typeof path !== 'string') return TRANSPARENT_PIXEL;
+    let cleanPath = path.replace(/^\/?public\//, '');
+    if (cleanPath.trim() === '' || cleanPath.endsWith('/')) return TRANSPARENT_PIXEL;
+    try { cleanPath = decodeURIComponent(cleanPath); } catch(e) {}
+    return remotionStaticFile(cleanPath);
+};
+
+export interface GridAsset {
+  url: string;        // local path to downloaded asset (resolved via staticFile)
+  title: string;
+  subtitle: string;
+  trigger_frame: number;
+}
+
+export interface DynamicLiquidGridProps {
+  bgVideoUrl: string; // local path to background video
+  assets: GridAsset[];
+}
+
+export const DynamicLiquidGrid: React.FC<DynamicLiquidGridProps> = ({ bgVideoUrl, assets }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+
+  // DYNAMIC SPRING ENGINE (100% crash-proof)
+  // If an asset doesn't exist, its trigger defaults to frame 9999 (never fires)
+  const trigger1 = assets[1]?.trigger_frame ?? 9999;
+  const trigger2 = assets[2]?.trigger_frame ?? 9999;
+
+  const spring1 = spring({ frame: Math.max(0, frame - trigger1), fps, config: { damping: 28, stiffness: 90, mass: 1 } });
+  const spring2 = spring({ frame: Math.max(0, frame - trigger2), fps, config: { damping: 28, stiffness: 90, mass: 1 } });
+
+  // FLUID WIDTH MATH (100 -> 50/50 -> 33/33/33)
+  const w0 = interpolate(spring1, [0, 1], [100, 50]) - interpolate(spring2, [0, 1], [0, 16.66]);
+  const w1 = interpolate(spring1, [0, 1], [0, 50]) - interpolate(spring2, [0, 1], [0, 16.66]);
+  const w2 = interpolate(spring2, [0, 1], [0, 33.33]);
+  const widths = [w0, w1, w2];
+
+  // DYNAMIC BACKGROUND BLUR (Starts sharp, blurs on first trigger)
+  const firstTrigger = assets[0]?.trigger_frame ?? 0;
+  // Use opacity instead of blur for hardware acceleration to prevent video tearing
+  const blurOpacity = interpolate(frame, [firstTrigger - 10, firstTrigger], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+
+  const liquidGlassStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, rgba(255,255,255,0.25), rgba(255,255,255,0.05))",
+    backdropFilter: "blur(40px) saturate(200%) brightness(120%)",
+    WebkitBackdropFilter: "blur(40px) saturate(200%) brightness(120%)",
+    border: "1px solid rgba(255, 255, 255, 0.3)",
+    boxShadow: "0 40px 80px rgba(0,0,0,0.6), inset 0 2px 15px rgba(255,255,255,0.6), inset 0 -2px 10px rgba(0,0,0,0.1)",
+    borderRadius: "32px",
+    overflow: "hidden",
+    position: "relative",
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+  };
+
+  // Detect if background is video or image
+  const bgExt = bgVideoUrl?.split('.').pop()?.toLowerCase() || '';
+  const bgIsVideo = ['mp4', 'mov', 'webm'].includes(bgExt);
+
+  return (
+    <CinematicTextureWrapper
+      backgroundLayer={
+        <AbsoluteFill>
+          {/* BACKGROUND LAYER (Clean, hardware-accelerated, no animating filters) */}
+          <AbsoluteFill style={{ transform: "scale(1.1) translateZ(0)", zIndex: 0 }}>
+            {bgIsVideo ? (
+              <OffthreadVideo src={staticFile(bgVideoUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => console.log("Media playback error caught on Video:", e)} />
+            ) : (
+              <>
+                {bgVideoUrl ? <Img src={staticFile(bgVideoUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: "#0a0a0a" }} />}
+              </>
+            )}
+          </AbsoluteFill>
+
+          {/* BLUR OVERLAY (Animates opacity instead of CSS blur radius to save GPU) */}
+          <AbsoluteFill style={{ 
+              backgroundColor: `rgba(0,0,0,${blurOpacity * 0.4})`,
+              backdropFilter: "blur(40px) saturate(150%)",
+              WebkitBackdropFilter: "blur(40px) saturate(150%)",
+              opacity: blurOpacity,
+              zIndex: 1,
+              pointerEvents: "none"
+          }} />
+        </AbsoluteFill>
+      }
+    >
+      <AbsoluteFill style={{ backgroundColor: "transparent", fontFamily: '"Geist", "Inter", system-ui, sans-serif' }}>
+
+
+      {/* DYNAMIC GRID CONTAINER */}
+      <div style={{
+        position: "absolute",
+        top: "10%",
+        left: "5%",
+        width: "90%",
+        height: "65%",
+        display: "flex",
+        gap: "24px",
+        zIndex: 10
+      }}>
+        {assets.map((asset, i) => {
+          const currentWidth = widths[i];
+          if (currentWidth < 1) return null;
+
+          const cardEntrance = spring({ frame: Math.max(0, frame - asset.trigger_frame), fps, config: { damping: 12, stiffness: 100 } });
+          const cardScale = interpolate(cardEntrance, [0, 1], [0.8, 1]);
+          const cardOpacity = interpolate(cardEntrance, [0, 0.5], [0, 1]);
+
+          return (
+            <div key={i} style={{ ...liquidGlassStyle, width: `${currentWidth}%`, opacity: cardOpacity, transform: `scale(${cardScale})` }}>
+              
+              {/* Top Glare */}
+              <div style={{ position: "absolute", top: 0, width: "100%", height: "40%", background: "linear-gradient(180deg, rgba(255,255,255,0.4) 0%, transparent 100%)", zIndex: 2, pointerEvents: "none" }} />
+
+              {/* Asset Image */}
+              {asset.url ? <Img src={staticFile(asset.url)} style={{ width: "100%", height: "100%", objectFit: "cover", zIndex: 1 }} /> : <div style={{ width: "100%", height: "100%", backgroundColor: "#111", zIndex: 1 }} />}
+              
+              {/* Text HUD */}
+              <div style={{
+                position: "absolute", bottom: 0, width: "100%", padding: "40px 30px",
+                background: "linear-gradient(to top, rgba(0,0,0,0.95), transparent)", zIndex: 3
+              }}>
+                <h2 style={{ color: "#fff", fontSize: "36px", fontWeight: 800, margin: "0 0 8px 0", letterSpacing: "-1px" }}>{asset.title}</h2>
+                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "20px", fontWeight: 500, margin: 0 }}>{asset.subtitle}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      </AbsoluteFill>
+    </CinematicTextureWrapper>
+  );
+};
