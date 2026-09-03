@@ -1,4 +1,4 @@
-name: "Stickman 2K Render & YouTube Upload"
+﻿name: "Stickman 2K Render & YouTube Upload"
 
 on:
   workflow_dispatch:
@@ -43,7 +43,7 @@ env:
 jobs:
 
   # ---------------------------------------------------------
-  # PHASE 1: creation_job — Scriptwriting & Orchestration
+  # PHASE 1: creation_job â€” Scriptwriting & Orchestration
   # ---------------------------------------------------------
   creation_job:
     if: inputs.action_type != 'RENDER_ONLY'
@@ -111,7 +111,7 @@ jobs:
           VAULT="$INPUT_TOPIC"
           CHANNEL="${{ inputs.channel_name }}"
           if [ -n "$VAULT" ]; then
-            if rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT/master_timeline.json" . --transfers 4 2>/dev/null && [ -s master_timeline.json ]; then
+            if rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT/master_timeline.json" . --transfers 4 2>/dev/null && [ -s master_timeline.json ]; then
               echo "[+] Valid master_timeline.json detected. Skipping TTS and PREP."
               echo "skip_tts=true" >> $GITHUB_OUTPUT
               echo "skip_prep=true" >> $GITHUB_OUTPUT
@@ -141,7 +141,7 @@ jobs:
           echo "total_frames=$TOTAL_FRAMES" >> $GITHUB_OUTPUT
 
   # ---------------------------------------------------------
-  # PHASE 2a: tts_matrix — 15 Parallel Voiceover Workers
+  # PHASE 2a: tts_matrix â€” 15 Parallel Voiceover Workers
   # ---------------------------------------------------------
   tts_matrix:
     needs: [creation_job]
@@ -193,7 +193,7 @@ jobs:
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "tts_worker.py" --include "local_voice_engine.py" --include "voiceover_manager.py" --transfers 4
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "script.txt" --include "*.wav" --transfers 8 || true
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "script.txt" --include "*.wav" --transfers 8 || true
 
       - name: Cache HuggingFace Models
         uses: actions/cache@v4
@@ -219,10 +219,10 @@ jobs:
       - name: Upload WAV Chunks to Drive
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
-          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --include "*.wav" -v
+          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" --include "*.wav" -v
 
   # ---------------------------------------------------------
-  # PHASE 2b: brain_prep_job — Audio Stitch + WhisperX + Storyboard Generation
+  # PHASE 2b: brain_prep_job â€” Audio Stitch + WhisperX + Storyboard Generation
   # ---------------------------------------------------------
   brain_prep_job:
     needs: [creation_job, tts_matrix]
@@ -270,7 +270,7 @@ jobs:
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "*.py" --transfers 8
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
 
       - name: Install Python Dependencies
         run: |
@@ -287,10 +287,10 @@ jobs:
       - name: Upload Storyboard and Audio to Drive
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
-          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --transfers 8 -v
+          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" --transfers 8 -v
 
   # ---------------------------------------------------------
-  # PHASE 2c: download_matrix — 20 Parallel Stickman Image Generators
+  # PHASE 2c: download_matrix â€” 20 Parallel Stickman Image Generators
   # ---------------------------------------------------------
   download_matrix:
     needs: [creation_job, brain_prep_job]
@@ -342,7 +342,7 @@ jobs:
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "stickman_cloud_cluster.py" --include ".env" --transfers 4
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "storyboard.json" --transfers 4
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "storyboard.json" --transfers 4
 
       - name: Run Stickman Visual Cloud Generator
         env:
@@ -362,10 +362,10 @@ jobs:
       - name: Upload Generated WebP Assets to Drive
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
-          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT/assets" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/assets" --include "*.webp" --transfers 16 -v
+          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT/assets" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT/assets" --include "*.webp" --transfers 16 -v
 
   # ---------------------------------------------------------
-  # PHASE 2d: brain_finish_job — Audio Mastering & Master Timeline Merge
+  # PHASE 2d: brain_finish_job â€” Audio Mastering & Master Timeline Merge
   # ---------------------------------------------------------
   brain_finish_job:
     needs: [creation_job, brain_prep_job, download_matrix]
@@ -413,7 +413,7 @@ jobs:
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "*.py" --transfers 8
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
 
       - name: Run Audio Mastering & Final Timeline Assembly
         run: |
@@ -423,10 +423,10 @@ jobs:
       - name: Upload Final master_timeline.json to Drive
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
-          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --include "master_timeline.json" --include "master_audio.wav" -v
+          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" --include "master_timeline.json" --include "master_audio.wav" -v
 
   # ---------------------------------------------------------
-  # PHASE 3: render_matrix — 20 Parallel Remotion 2K Workers
+  # PHASE 3: render_matrix â€” 20 Parallel Remotion 2K Workers
   # ---------------------------------------------------------
   render_matrix:
     needs: [creation_job, brain_finish_job]
@@ -472,7 +472,7 @@ jobs:
           fi
           CHANNEL="${{ inputs.channel_name }}"
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
           cp "public/channels/$CHANNEL/$VAULT/master_timeline.json" master_timeline.json
 
       - name: Install Remotion Dependencies
@@ -497,10 +497,10 @@ jobs:
           else
              VAULT="${{ needs.creation_job.outputs.vault_name }}"
           fi
-          rclone copy "out/chunk_${{ matrix.chunk }}.mp4" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/chunks" -v
+          rclone copy "out/chunk_${{ matrix.chunk }}.mp4" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT/chunks" -v
 
   # ---------------------------------------------------------
-  # PHASE 4: stitch_and_upload — FFmpeg Stitch & YouTube Publishing
+  # PHASE 4: stitch_and_upload â€” FFmpeg Stitch & YouTube Publishing
   # ---------------------------------------------------------
   stitch_and_upload:
     needs: [creation_job, render_matrix]
@@ -551,9 +551,9 @@ jobs:
           fi
           CHANNEL="${{ inputs.channel_name }}"
           mkdir -p chunks
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT/chunks" chunks/ --transfers 16
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" chunks/ --transfers 16
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Colab_AutoVideoCreator/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "master_audio.wav" --include "metadata.json"
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "master_audio.wav" --include "metadata.json"
 
       - name: Stitch 2K Chunks and Audio
         run: |
@@ -573,13 +573,14 @@ jobs:
           else
              VAULT="${{ needs.creation_job.outputs.vault_name }}"
           fi
-          rclone copy "final_output/final_video.mp4" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/$VAULT" -v
-          rclone purge --drive-use-trash=false "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" || true
+          rclone copy "final_output/final_video.mp4" "data:Stickman Project/channels/${{ inputs.channel_name }}/to upload/$VAULT" -v
+          rclone purge --drive-use-trash=false "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" || true
 
       - name: Run YouTube Uploader
         run: |
           rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "client_secrets.json" --transfers 2 || true
           mkdir -p tokens
-          rclone copy "data:Colab_AutoVideoCreator/tokens" tokens --transfers 4 || true
+          rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
           pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests
           python -u youtube_uploader.py || echo "[!] YouTube upload completed or bypassed."
+
