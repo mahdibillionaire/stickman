@@ -76,15 +76,23 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
-          E_ACCESS=$(echo $ENGINE_TOKEN_RAW | jq -r '.token // empty')
-          E_REFRESH=$(echo $ENGINE_TOKEN_RAW | jq -r '.refresh_token // empty')
-          E_EXPIRY=$(echo $ENGINE_TOKEN_RAW | jq -r '.expiry // empty')
-          ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
 
-          D_ACCESS=$(echo $DATA_TOKEN_RAW | jq -r '.token // empty')
-          D_REFRESH=$(echo $DATA_TOKEN_RAW | jq -r '.refresh_token // empty')
-          D_EXPIRY=$(echo $DATA_TOKEN_RAW | jq -r '.expiry // empty')
-          DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
 
           cat << EOF > ~/.config/rclone/rclone.conf
           [engine]
@@ -568,7 +576,7 @@ jobs:
           cp "public/channels/$CHANNEL/$VAULT/master_timeline.json" master_timeline.json
 
       - name: Install Remotion Dependencies
-        run: npm ci
+        run: npm ci || npm install --legacy-peer-deps
 
       - name: Render 2K Video Chunk
         run: |
@@ -663,18 +671,22 @@ jobs:
           mkdir -p chunks
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" chunks/ --transfers 16
           mkdir -p "public/channels/$CHANNEL/$VAULT"
-          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "master_audio.wav" --include "metadata.json"
+          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "master_audio.wav" --include "voiceover.wav" --include "metadata.json"
 
       - name: Stitch 2K Chunks and Audio
         run: |
-          echo "" > file_list.txt
+          rm -f file_list.txt && touch file_list.txt
           for i in {0..19}; do
             if [ -f "chunks/chunk_$i.mp4" ]; then
               echo "file 'chunks/chunk_$i.mp4'" >> file_list.txt
             fi
           done
+          AUDIO_SRC="public/channels/${{ inputs.channel_name }}/$VAULT/master_audio.wav"
+          if [ ! -f "$AUDIO_SRC" ] && [ -f "public/channels/${{ inputs.channel_name }}/$VAULT/voiceover.wav" ]; then
+            cp "public/channels/${{ inputs.channel_name }}/$VAULT/voiceover.wav" "$AUDIO_SRC"
+          fi
           mkdir -p final_output
-          ffmpeg -f concat -safe 0 -i file_list.txt -i "public/channels/${{ inputs.channel_name }}/$VAULT/master_audio.wav" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 320k -shortest "final_output/final_video.mp4"
+          ffmpeg -y -f concat -safe 0 -i file_list.txt -i "$AUDIO_SRC" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 320k -shortest "final_output/final_video.mp4"
 
       - name: Sync Final Video to Google Drive
         run: |
