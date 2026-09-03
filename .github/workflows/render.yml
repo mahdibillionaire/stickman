@@ -582,7 +582,7 @@ jobs:
           else
              VAULT="${{ needs.creation_job.outputs.vault_name }}"
           fi
-          rclone copy "final_output/final_video.mp4" "data:Stickman Project/channels/${{ inputs.channel_name }}/to upload/$VAULT" -v
+          rclone copy "final_output/final_video.mp4" "data:Stickman Project/Channels/${{ inputs.channel_name }}/to upload/$VAULT" -v
           rclone purge --drive-use-trash=false "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" || true
 
       - name: Run YouTube Uploader
