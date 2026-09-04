@@ -242,7 +242,7 @@ jobs:
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
-          rclone copy "engine:Stickman Project" . --include "tts_worker.py" --include "local_voice_engine.py" --include "voiceover_manager.py" --transfers 4
+          rclone copy "engine:Stickman Project" . --include "tts_worker.py" --include "local_voice_engine.py" --include "voiceover_manager.py" --include "requirements.txt" --transfers 4
           mkdir -p "Channels/$CHANNEL/voice"
           rclone copy "data:Stickman Project/Channels/$CHANNEL/voice" "Channels/$CHANNEL/voice" --transfers 4 || true
           mkdir -p "public/channels/$CHANNEL/$VAULT"
@@ -256,7 +256,7 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          for _retry in 1 2 3 4 5; do python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && break || { echo "Command failed, retrying..."; sleep 15; }; done
+          for _retry in 1 2 3 4 5; do if [ -f requirements.txt ]; then python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu; fi && break || { echo "Command failed, retrying..."; sleep 15; }; done
           for _retry in 1 2 3 4 5; do python -m pip install -U qwen-tts faster-whisper soundfile python-dotenv requests "huggingface_hub<1.0" && break || { echo "Command failed, retrying..."; sleep 15; }; done
 
       - name: Run TTS Worker
