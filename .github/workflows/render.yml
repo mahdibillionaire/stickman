@@ -446,7 +446,7 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install kagglesdk python-dotenv
+          pip install kagglesdk kaggle python-dotenv requests
           python -u kaggle_dispatcher.py --channel "${{ inputs.channel_name }}" --vault "${{ needs.creation_job.outputs.vault_name }}"
 
   # ---------------------------------------------------------
