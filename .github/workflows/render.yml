@@ -157,6 +157,22 @@ jobs:
           fi
           echo "total_frames=$TOTAL_FRAMES" >> $GITHUB_OUTPUT
 
+      - name: Cache HuggingFace Models
+        uses: actions/cache@v4
+        id: hf-cache
+        with:
+          path: ~/.cache/huggingface
+          key: hf-cache-qwen3-tts
+
+      - name: Pre-download Qwen3-TTS Model
+        if: steps.hf-cache.outputs.cache-hit != 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          for _retry in 1 2 3 4 5; do python -m pip install "huggingface_hub<1.0" && break || { echo "Command failed, retrying..."; sleep 15; }; done
+          if [ -n "$HF_TOKEN" ]; then huggingface-cli login --token "$HF_TOKEN" || true; else echo "No HF_TOKEN provided..."; fi
+          huggingface-cli download Qwen/Qwen3-TTS-12Hz-1.7B-Base
+
   # ---------------------------------------------------------
   # PHASE 2a: tts_matrix â€” 15 Parallel Voiceover Workers
   # ---------------------------------------------------------
@@ -238,6 +254,11 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-cache-qwen3-tts
 
+      - name: Install Python Dependencies
+        run: |
+          for _retry in 1 2 3 4 5; do python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && break || { echo "Command failed, retrying..."; sleep 15; }; done
+          for _retry in 1 2 3 4 5; do python -m pip install -U qwen-tts faster-whisper soundfile python-dotenv requests "huggingface_hub<1.0" && break || { echo "Command failed, retrying..."; sleep 15; }; done
+
       - name: Run TTS Worker
         env:
           TTS_WORKER_ID: ${{ matrix.worker }}
@@ -246,7 +267,6 @@ jobs:
           VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install torch torchaudio soundfile requests python-dotenv
           for i in {1..5}; do
             python -u tts_worker.py && break
             echo "[!] Worker retry $i/5..."
