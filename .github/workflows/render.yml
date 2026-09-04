@@ -751,9 +751,9 @@ jobs:
         run: |
           mkdir -p "channels/$CHANNEL/to upload"
           rclone copy "data:Stickman Project/Channels/$CHANNEL/to upload" "channels/$CHANNEL/to upload" --transfers 8 -v || true
-          rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "client_secrets.json" --transfers 2 || true
+          rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "distribution_engine.py" --include "pinterest_bot.py" --include "client_secrets.json" --transfers 4 || true
           mkdir -p tokens
           rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
-          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy
           python -u youtube_uploader.py || echo "[!] YouTube upload completed or bypassed."
 
