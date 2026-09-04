@@ -728,7 +728,14 @@ jobs:
           rclone purge --drive-use-trash=false "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" || true
 
       - name: Run YouTube Uploader
+        env:
+          AUTO_TARGET_FOLDER: "BULK"
+          CURRENT_CHANNEL: ${{ inputs.channel_name }}
+          DATA_ROOT: "Stickman Project"
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
+          mkdir -p "channels/${{ inputs.channel_name }}/to upload"
+          rclone copy "data:Stickman Project/Channels/${{ inputs.channel_name }}/to upload" "channels/${{ inputs.channel_name }}/to upload" --transfers 8 -v || true
           rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "client_secrets.json" --transfers 2 || true
           mkdir -p tokens
           rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
