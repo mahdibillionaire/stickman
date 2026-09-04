@@ -440,9 +440,9 @@ jobs:
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "storyboard.json" --include "master_timeline.json" --transfers 4
 
-      - name: Install Gradio Dependencies
+      - name: Install Generation Dependencies
         run: |
-          pip install gradio_client pillow numpy python-dotenv requests
+          pip install huggingface_hub pillow numpy python-dotenv requests
 
       - name: Generate Stickman Scenes (Worker ${{ matrix.worker }} / 5)
         env:
