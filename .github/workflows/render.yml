@@ -611,6 +611,8 @@ jobs:
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
           cp "public/channels/$CHANNEL/$VAULT/master_timeline.json" master_timeline.json
+          mkdir -p public/assets
+          cp -rn "public/channels/$CHANNEL/$VAULT/assets/." public/assets/ 2>/dev/null || true
 
       - name: Install Remotion Dependencies
         run: npm ci || npm install --legacy-peer-deps

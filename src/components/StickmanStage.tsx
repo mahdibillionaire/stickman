@@ -6,7 +6,6 @@ import {
   staticFile as remotionStaticFile 
 } from 'remotion';
 
-import { DynamicSubtitleBar } from './DynamicSubtitleBar';
 import { PaperTextureWrapper } from './PaperTextureWrapper';
 
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -16,7 +15,7 @@ const resolveMedia = (path: string) => {
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }
-  const cleanPath = path.replace(/^\/?public\//, '');
+  const cleanPath = path.replace(/^\/?public\//, '').replace(/^\//, '');
   if (cleanPath.trim() === '' || cleanPath.endsWith('/')) return TRANSPARENT_PIXEL;
   return remotionStaticFile(cleanPath);
 };
@@ -32,12 +31,14 @@ export interface StickmanStageProps {
  * - Zero zoom, zero drift (Rock-solid camera locked to the drawing)
  * - 2K Pristine Rendering with OffthreadVideo compliance
  * - Pure clean visual: Zero badges, zero floating stickers
- * - Retention-focused karaoke subtitles at bottom
+ * - Glowy LiquidMirror captions handled by CaptionDirector
  * - Subtle tactile paper texture
  */
 export const StickmanStage: React.FC<StickmanStageProps> = ({ scene, durationInFrames, index = 0 }) => {
-  // 1. Resolve media source
-  const rawSrc = scene.image_url || scene.media_paths?.[0] || scene.visual_asset || '';
+  // 1. Resolve media source with robust fallbacks
+  const sId = scene.scene_id || (index + 1);
+  const fallbackAsset = `assets/scene_${String(sId).padStart(3, '0')}.webp`;
+  const rawSrc = scene.image_url || scene.media_path || scene.media_paths?.[0] || scene.visual_asset || fallbackAsset;
   const mediaSrc = resolveMedia(rawSrc);
   const isVideo = typeof rawSrc === 'string' && (rawSrc.endsWith('.mp4') || rawSrc.endsWith('.webm') || rawSrc.endsWith('.mov'));
 
@@ -66,15 +67,6 @@ export const StickmanStage: React.FC<StickmanStageProps> = ({ scene, durationInF
             />
           )}
         </AbsoluteFill>
-
-        {/* Retention-Optimized Subtitles (if word timestamps are passed) */}
-        {scene.words && scene.words.length > 0 && (
-          <DynamicSubtitleBar
-            words={scene.words}
-            sceneStartMs={scene.timing?.start_ms || 0}
-            highlightColor="#F59E0B"
-          />
-        )}
       </AbsoluteFill>
     </PaperTextureWrapper>
   );

@@ -20,10 +20,6 @@ import { StickmanStage } from './components/StickmanStage';
 import { GlobalFinisher } from './components/GlobalFinisher';
 import { CinematicChapterReveal } from './components/CinematicChapterReveal';
 import { MagnatesStage } from './components/MagnatesStage';
-import { ZAxisCrashTransition } from './components/transition1';
-import { SpatialWhipTransition } from './components/transition2';
-import { ThermalFlareTransition } from './components/transition3';
-import { RackToBlackTransition } from './components/transition4';
 
 
 export const useCamera = () => ({ xPan: 0, yPan: 0, zScale: 1.0 });
@@ -37,46 +33,6 @@ const getParallaxMultiplier = (role: string, depth: number) => {
 
 const rawAny = masterJsonRaw as any;
 const normalisedTimeline = (rawAny.timeline ?? []).map((s: any) => s).filter(Boolean);
-
-
-// ==========================================
-// TRANSITION ROTATION ENGINE
-// ==========================================
-const transitionPool = ['ZAxisCrash', 'SpatialWhip', 'ThermalFlare', 'RackToBlack'];
-let activePool = [...transitionPool];
-
-const shuffle = (array: any[], seedStr: string) => {
-    let currentIndex = array.length, randomIndex;
-    let seedOffset = 0;
-    while (currentIndex != 0) {
-        randomIndex = Math.floor(seededRandom(seedStr + seedOffset) * currentIndex);
-        seedOffset++;
-        currentIndex--;
-        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-    }
-    return array;
-};
-
-const videoSeed = (masterJsonRaw as any)?.channel || 'default_video';
-activePool = shuffle([...transitionPool], videoSeed);
-let transitionIndex = 0;
-
-normalisedTimeline.forEach((scene: any, i: number) => {
-    const words = scene.words || [];
-    const lastWord = words.length > 0 ? words[words.length - 1].word : '';
-    const isEndOfPara = lastWord.endsWith('.') || lastWord.endsWith('?') || lastWord.endsWith('!');
-    
-    if (isEndOfPara) {
-        scene.outgoingTransition = activePool[transitionIndex];
-        transitionIndex++;
-        if (transitionIndex >= activePool.length) {
-            activePool = shuffle([...transitionPool], videoSeed + "_cycle_" + i);
-            transitionIndex = 0;
-        }
-    } else {
-        scene.outgoingTransition = 'none';
-    }
-});
 
 const masterJson: any = {
   ...rawAny,
@@ -266,29 +222,6 @@ const SceneContent = ({ scene, index }: any) => {
     );
 };
 
-const TransitionSceneA = ({ scene, index }: any) => {
-    return (
-        <Sequence from={15 - scene.visualDurFrames} layout="none">
-            <SceneContent scene={scene} index={index} />
-        </Sequence>
-    );
-};
-
-const TransitionSceneB = ({ scene, index }: any) => {
-    return (
-        <AbsoluteFill>
-            <Sequence durationInFrames={15} layout="none">
-                <Freeze frame={0}>
-                    <SceneContent scene={scene} index={index} />
-                </Freeze>
-            </Sequence>
-            <Sequence from={15} layout="none">
-                <SceneContent scene={scene} index={index} />
-            </Sequence>
-        </AbsoluteFill>
-    );
-};
-
 const AutomatedDocumentary = () => {
   const { fps } = useVideoConfig();
   const msToFrames = (ms: number) => Math.round((ms / 1000) * fps);
@@ -341,28 +274,6 @@ const AutomatedDocumentary = () => {
                   <Sequence from={scene.startFrame} durationInFrames={scene.visualDurFrames}>
                       <SceneContent scene={scene} index={index} />
                   </Sequence>
-
-                  {/* CUSTOM TRANSITION ROUTER */}
-                  {scene.outgoingTransition && scene.outgoingTransition !== 'none' && mappedScenes[index + 1] && (
-                      <Sequence 
-                          from={scene.startFrame + scene.visualDurFrames - 15} 
-                          durationInFrames={30}
-                          style={{ zIndex: 9999 }}
-                      >
-                          {scene.outgoingTransition === 'ZAxisCrash' && (
-                              <ZAxisCrashTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
-                          )}
-                          {scene.outgoingTransition === 'SpatialWhip' && (
-                              <SpatialWhipTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
-                          )}
-                          {scene.outgoingTransition === 'ThermalFlare' && (
-                              <ThermalFlareTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
-                          )}
-                          {scene.outgoingTransition === 'RackToBlack' && (
-                              <RackToBlackTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
-                          )}
-                      </Sequence>
-                  )}
 
                   {/* DECOUPLED AUDIO SEQUENCE (Allows exact J/L overlapping independently of visual duration) */}
                   <Sequence from={scene.startFrame} durationInFrames={scene.audioDurFrames}>
