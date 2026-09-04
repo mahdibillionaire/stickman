@@ -367,12 +367,17 @@ jobs:
           rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" --transfers 8 -v
 
   # ---------------------------------------------------------
-  # PHASE 2c: download_matrix — Kaggle P100 GPU Visual Engine (FLUX.1-schnell)
+  # ---------------------------------------------------------
+  # PHASE 2c: download_matrix — 5 Parallel Gradio FLUX.1-schnell Workers
   # ---------------------------------------------------------
   download_matrix:
     needs: [creation_job, brain_prep_job]
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [0, 1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -427,27 +432,35 @@ jobs:
           token = $DATA_TOKEN
           EOF
 
-      - name: Download Engine Dispatcher & Storyboard
+      - name: Download Engine Cluster Script & Storyboard
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
-          rclone copy "engine:Stickman Project" . --include "kaggle_dispatcher.py" --include "kaggle_stickman_kernel.py" --include "stickman_cloud_cluster.py" --include ".env" --transfers 4
+          rclone copy "engine:Stickman Project" . --include "stickman_cloud_cluster.py" --include ".env" --transfers 4
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "storyboard.json" --include "master_timeline.json" --transfers 4
 
-      - name: Run Kaggle P100 GPU Visual Engine (FLUX.1-schnell)
-        env:
-          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME || 'mahdikaibi' }}
-          CHANNEL_NAME: ${{ inputs.channel_name }}
-          VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - name: Install Gradio Dependencies
         run: |
-          pip install kagglesdk kaggle python-dotenv requests
-          python -u kaggle_dispatcher.py --channel "${{ inputs.channel_name }}" --vault "${{ needs.creation_job.outputs.vault_name }}"
+          pip install gradio_client pillow numpy python-dotenv requests
+
+      - name: Generate Stickman Scenes (Worker ${{ matrix.worker }} / 5)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_TOKEN_2: ${{ secrets.HF_TOKEN_2 }}
+          HF_TOKEN_3: ${{ secrets.HF_TOKEN_3 }}
+          HF_TOKEN_4: ${{ secrets.HF_TOKEN_4 }}
+          HF_TOKEN_5: ${{ secrets.HF_TOKEN_5 }}
+        run: |
+          VAULT="${{ needs.creation_job.outputs.vault_name }}"
+          CHANNEL="${{ inputs.channel_name }}"
+          python -u stickman_cloud_cluster.py --storyboard "public/channels/$CHANNEL/$VAULT/storyboard.json" --output_dir "public/channels/$CHANNEL/$VAULT/assets" --worker_id ${{ matrix.worker }} --total_workers 5
+
+      - name: Sync Rendered Assets to Google Drive
+        run: |
+          VAULT="${{ needs.creation_job.outputs.vault_name }}"
+          CHANNEL="${{ inputs.channel_name }}"
+          rclone copy "public/channels/$CHANNEL/$VAULT/assets" "data:Stickman Project/public/channels/$CHANNEL/$VAULT/assets" --transfers 16 -v
 
   # ---------------------------------------------------------
   # PHASE 2d: brain_finish_job â€” Audio Mastering & Master Timeline Merge
