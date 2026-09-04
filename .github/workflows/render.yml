@@ -442,7 +442,7 @@ jobs:
 
       - name: Install Generation Dependencies
         run: |
-          pip install huggingface_hub pillow numpy python-dotenv requests
+          pip install huggingface_hub gradio_client pillow numpy python-dotenv requests
 
       - name: Generate Stickman Scenes (Worker ${{ matrix.worker }} / 5)
         env:
