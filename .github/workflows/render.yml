@@ -447,7 +447,7 @@ jobs:
           VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install requests gradio_client pillow python-dotenv
+          pip install requests gradio_client pillow python-dotenv numpy
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           STORYBOARD_PATH="public/channels/${{ inputs.channel_name }}/$VAULT/storyboard.json"
           OUTPUT_DIR="public/channels/${{ inputs.channel_name }}/$VAULT/assets"
