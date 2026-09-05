@@ -22,4 +22,5 @@ google-auth-oauthlib
 selenium
 seleniumbase
 undetected-chromedriver
+pyperclip
 git+https://github.com/m-bain/whisperx.git
