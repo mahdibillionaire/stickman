@@ -14,7 +14,7 @@ import { LayoutRouter, SmartMedia } from './components/Layouts';
 import { TypographyRouter } from './components/Typography';
 import { MotionGraphicsRouter } from './components/MotionGraphics';
 import { EffectsDirector } from './components/Effects';
-import { CaptionDirector } from './components/CaptionDirector';
+import { CaptionDirector, GlobalCaptionDirector } from './components/CaptionDirector';
 import { DynamicLiquidGrid } from './components/DynamicLiquidGrid';
 import { StickmanStage } from './components/StickmanStage';
 import { GlobalFinisher } from './components/GlobalFinisher';
@@ -215,9 +215,7 @@ const SceneContent = ({ scene, index }: any) => {
                     <CinematicOverlay src={scene.overlay_image} durationInFrames={Math.max(1, scene.visualDurFrames - Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps))} />
                 </Sequence>
             )}
-            {scene.words && scene.words.length > 0 && scene.editorialVariants?.captionEnabled !== false && scene.scene_type !== 'topic_reveal' && scene.scene_type !== 'monolith' && scene.scene_type !== 'magnates_2.5d' && scene.scene_type !== 'two_part_whip' && (!scene.diorama_payload || Object.keys(scene.diorama_payload).length === 0) && (!scene.monolith_payload || Object.keys(scene.monolith_payload).length === 0) && (scene.caption_preset || scene.visual?.caption_preset) !== 'none' && (
-                <CaptionDirector scene={scene} />
-            )}
+            {/* Captions are rendered by GlobalCaptionDirector at root level — no nested rounding */}
         </AbsoluteFill>
     );
 };
@@ -282,6 +280,10 @@ const AutomatedDocumentary = () => {
                </React.Fragment>
             );
          })}
+
+         {/* GLOBAL CAPTION TRACK — flat root-level, single rounding per word, zero progressive drift */}
+         <GlobalCaptionDirector scenes={mappedScenes} />
+
       </AbsoluteFill>
       
       {/* Inline styles for cross-focus animation engine */}
