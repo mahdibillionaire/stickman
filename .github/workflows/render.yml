@@ -554,6 +554,7 @@ jobs:
     if: always() && !cancelled() && !failure()
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         chunk: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     steps:
@@ -632,7 +633,9 @@ jobs:
 
       - name: Upload Chunk to Google Drive
         run: |
-          rclone copy "out/chunk_${{ matrix.chunk }}.mp4" "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" -v
+          for _retry in 1 2 3 4; do
+            rclone copy "out/chunk_${{ matrix.chunk }}.mp4" "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" -v && break || sleep 10
+          done
 
   # ---------------------------------------------------------
   # PHASE 4: stitch_and_upload â€” FFmpeg Stitch & YouTube Publishing
@@ -716,18 +719,28 @@ jobs:
       - name: Download Rendered Chunks & Master Audio
         run: |
           mkdir -p chunks
-          rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" chunks/ --transfers 16
+          for _retry in 1 2 3 4 5; do
+            rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" chunks/ --transfers 16 && break || sleep 10
+          done
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "master_audio.wav" --include "voiceover.wav" --include "metadata.json"
 
       - name: Stitch 2K Chunks and Audio
         run: |
           rm -f file_list.txt && touch file_list.txt
+          MISSING_CHUNKS=0
           for i in {0..19}; do
-            if [ -f "chunks/chunk_$i.mp4" ]; then
+            if [ -s "chunks/chunk_$i.mp4" ]; then
               echo "file 'chunks/chunk_$i.mp4'" >> file_list.txt
+            else
+              echo "[!] CRITICAL ERROR: chunks/chunk_$i.mp4 is MISSING or EMPTY!"
+              MISSING_CHUNKS=$(( MISSING_CHUNKS + 1 ))
             fi
           done
+          if [ $MISSING_CHUNKS -gt 0 ]; then
+            echo "[!] FATAL: $MISSING_CHUNKS chunk(s) missing or corrupt! Aborting stitch to prevent audio desync."
+            exit 1
+          fi
           AUDIO_SRC="public/channels/$CHANNEL/$VAULT/master_audio.wav"
           if [ ! -f "$AUDIO_SRC" ] && [ -f "public/channels/$CHANNEL/$VAULT/voiceover.wav" ]; then
             cp "public/channels/$CHANNEL/$VAULT/voiceover.wav" "$AUDIO_SRC"
