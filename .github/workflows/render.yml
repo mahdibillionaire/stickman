@@ -135,9 +135,9 @@ jobs:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
           pip install -r requirements.txt
-          rclone copy "engine:Stickman Project" . --filter "+ *.py" --filter "+ chatgpt_cookies.json" --filter "- *" --transfers 8 || true
+          rclone copy "engine:Stickman Project" . --filter "+ *.py" --filter "+ *.json" --filter "- *" --transfers 8 || true
           if [ -f "orchestrator.py" ]; then
-            xvfb-run -a python -u orchestrator.py
+            xvfb-run -a --server-args="-screen 0 1920x1080x24" python -u orchestrator.py
           elif [ -f ".github/scripts/orchestrator.py" ]; then
             python -u .github/scripts/orchestrator.py
           else
