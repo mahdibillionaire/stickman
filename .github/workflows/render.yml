@@ -66,7 +66,7 @@ jobs:
         run: |
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
           sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install rclone jq sox libsox-fmt-all -y && break || sleep 10; done
+          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install rclone jq sox libsox-fmt-all xvfb -y && break || sleep 10; done
 
       - name: Configure rclone Silently
         env:
@@ -135,9 +135,9 @@ jobs:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
           pip install -r requirements.txt
-          rclone copy "engine:Stickman Project" . --filter "+ *.py" --filter "- *" --transfers 8 || true
+          rclone copy "engine:Stickman Project" . --filter "+ *.py" --filter "+ chatgpt_cookies.json" --filter "- *" --transfers 8 || true
           if [ -f "orchestrator.py" ]; then
-            python -u orchestrator.py
+            xvfb-run -a python -u orchestrator.py
           elif [ -f ".github/scripts/orchestrator.py" ]; then
             python -u .github/scripts/orchestrator.py
           else
@@ -451,6 +451,7 @@ jobs:
           HF_TOKEN_3: ${{ secrets.HF_TOKEN_3 }}
           HF_TOKEN_4: ${{ secrets.HF_TOKEN_4 }}
           HF_TOKEN_5: ${{ secrets.HF_TOKEN_5 }}
+          POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
