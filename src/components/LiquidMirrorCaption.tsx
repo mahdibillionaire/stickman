@@ -88,7 +88,7 @@ export const LiquidMirrorCaption: React.FC<{ script: WordTiming[] }> = ({ script
                 fontWeight: isActive ? 700 : 400,
                 
                 textShadow: isActive ? "0 0 30px rgba(255,255,255,0.9)" : "none",
-                transition: "color 0.2s ease, opacity 0.2s ease, font-weight 0.2s ease",
+                transition: "none",
                 display: "inline-block",
                 letterSpacing: "-1px",
                 zIndex: 2

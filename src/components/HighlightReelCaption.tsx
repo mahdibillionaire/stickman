@@ -48,7 +48,7 @@ export const HighlightReelCaption: React.FC<{ script: HighlightWordTiming[] }> =
         maxWidth: "80%",
         justifyContent: "center",
         alignItems: "center",
-        transition: "all 0.3s ease"
+        transition: "none"
       }}>
         {script.map((item, index) => {
           const isActive = frame >= item.start && frame < item.end;
@@ -93,7 +93,7 @@ export const HighlightReelCaption: React.FC<{ script: HighlightWordTiming[] }> =
                   ? "0 0 20px rgba(0,255,102,0.6), 0 0 40px rgba(0,255,102,0.3)" 
                   : "none",
                 
-                transition: "color 0.15s ease-out, text-shadow 0.15s ease-out",
+                transition: "none",
                 display: "inline-block",
               }}
             >

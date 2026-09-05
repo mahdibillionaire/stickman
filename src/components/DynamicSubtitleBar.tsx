@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
 
 export interface WordTiming {
@@ -89,7 +89,7 @@ export const DynamicSubtitleBar: React.FC<DynamicSubtitleBarProps> = ({
               transform: 'none',
               color: textColor,
               backgroundColor: bgColor,
-              transition: 'background-color 0.15s ease, color 0.15s ease',
+              transition: 'none',
               lineHeight: 1.1,
             }}
           >

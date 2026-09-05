@@ -615,6 +615,12 @@ jobs:
           cp "public/channels/$CHANNEL/$VAULT/master_timeline.json" master_timeline.json
           mkdir -p public/assets
           cp -rn "public/channels/$CHANNEL/$VAULT/assets/." public/assets/ 2>/dev/null || true
+          # Unify Master Audio in public/ so Remotion renders audio-video coupled chunks
+          if [ -f "public/channels/$CHANNEL/$VAULT/master_audio.wav" ]; then
+            cp "public/channels/$CHANNEL/$VAULT/master_audio.wav" public/master_audio.wav
+          elif [ -f "public/channels/$CHANNEL/$VAULT/voiceover.wav" ]; then
+            cp "public/channels/$CHANNEL/$VAULT/voiceover.wav" public/master_audio.wav
+          fi
 
       - name: Install Remotion Dependencies
         run: npm ci || npm install --legacy-peer-deps
@@ -741,17 +747,31 @@ jobs:
             echo "[!] FATAL: $MISSING_CHUNKS chunk(s) missing or corrupt! Aborting stitch to prevent audio desync."
             exit 1
           fi
-          AUDIO_SRC="public/channels/$CHANNEL/$VAULT/master_audio.wav"
-          if [ ! -f "$AUDIO_SRC" ] && [ -f "public/channels/$CHANNEL/$VAULT/voiceover.wav" ]; then
-            cp "public/channels/$CHANNEL/$VAULT/voiceover.wav" "$AUDIO_SRC"
-          fi
-          if [ ! -f "$AUDIO_SRC" ]; then
-            echo "[!] FATAL: Audio source not found at: $AUDIO_SRC"
-            ls -la "public/channels/$CHANNEL/$VAULT" || true
-            exit 1
-          fi
           mkdir -p final_output
-          ffmpeg -y -f concat -safe 0 -i file_list.txt -i "$AUDIO_SRC" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 320k -shortest "final_output/final_video.mp4"
+          CHUNK_AUDIO=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "chunks/chunk_0.mp4" 2>/dev/null || echo "")
+
+          if [ -n "$CHUNK_AUDIO" ]; then
+            echo "[+] Detected unified audio in chunks ($CHUNK_AUDIO). Executing lossless Annex-B bitstream stitch..."
+            for i in {0..19}; do
+              ffmpeg -y -i "chunks/chunk_$i.mp4" -c copy -bsf:v h264_mp4toannexb "chunks/chunk_$i.ts"
+            done
+            cat chunks/chunk_{0..19}.ts > chunks/combined.ts
+            ffmpeg -y -i chunks/combined.ts -c copy -bsf:a aac_adtstoasc -movflags +faststart "final_output/final_video.mp4"
+            rm -f chunks/*.ts
+            echo "[+] Unified bitstream stitch complete -> final_output/final_video.mp4"
+          else
+            echo "[!] Chunks do not contain embedded audio. Falling back to external audio muxing..."
+            AUDIO_SRC="public/channels/$CHANNEL/$VAULT/master_audio.wav"
+            if [ ! -f "$AUDIO_SRC" ] && [ -f "public/channels/$CHANNEL/$VAULT/voiceover.wav" ]; then
+              cp "public/channels/$CHANNEL/$VAULT/voiceover.wav" "$AUDIO_SRC"
+            fi
+            if [ ! -f "$AUDIO_SRC" ]; then
+              echo "[!] FATAL: Audio source not found at: $AUDIO_SRC"
+              ls -la "public/channels/$CHANNEL/$VAULT" || true
+              exit 1
+            fi
+            ffmpeg -y -f concat -safe 0 -i file_list.txt -i "$AUDIO_SRC" -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 320k -shortest "final_output/final_video.mp4"
+          fi
 
       - name: Sync Final Video to Google Drive
         run: |
@@ -765,8 +785,8 @@ jobs:
           DATA_ROOT: "Stickman Project"
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
-          mkdir -p "channels/$CHANNEL/to upload"
-          rclone copy "data:Stickman Project/Channels/$CHANNEL/to upload" "channels/$CHANNEL/to upload" --transfers 8 -v || true
+          mkdir -p "Channels/$CHANNEL/to upload"
+          rclone copy "data:Stickman Project/Channels/$CHANNEL/to upload" "Channels/$CHANNEL/to upload" --transfers 8 -v || true
           rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "distribution_engine.py" --include "pinterest_bot.py" --include "client_secrets.json" --transfers 4 || true
           mkdir -p tokens
           rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true

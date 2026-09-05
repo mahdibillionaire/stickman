@@ -66,7 +66,7 @@ export const CinematicDocumentaryCaption: React.FC<{ script: WordTiming[] }> = (
                 textShadow: isActive 
                   ? `0 6px 20px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.9), 0 0 15px rgba(226, 183, 20, 0.4)`
                   : `0 6px 20px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.9)`,
-                transition: "color 0.15s ease, opacity 0.15s ease",
+                transition: "none",
                 display: "inline-block",
                 letterSpacing: "0.5px"
               }}

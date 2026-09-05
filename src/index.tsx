@@ -262,6 +262,9 @@ const AutomatedDocumentary = () => {
     <GlobalFinisher>
       <AbsoluteFill style={{ backgroundColor: '#000' }}>
          
+         {/* 0. UNIFIED MASTER AUDIO TRACK (Locks audio and video frame-for-frame within each rendered chunk) */}
+         <Audio src={staticFile("master_audio.wav")} onError={() => {}} />
+
          {/* 6. Decoupled Audio & Visual Timeline */}
          {mappedScenes.map((scene: any, index: number) => {
             
