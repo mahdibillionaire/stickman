@@ -26,7 +26,7 @@ export interface ShortsGlassOutroProps {
 
 export const ShortsGlassOutro: React.FC<ShortsGlassOutroProps> = ({
   thumbnailSrc = 'test_thumb.png',
-  headline = 'WATCH FULL MOVIE STORY',
+  headline = 'WATCH FULL VIDEO',
   subtext = '(First link in description 👇)',
 }) => {
   const frame = useCurrentFrame();

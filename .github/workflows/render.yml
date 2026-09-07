@@ -800,7 +800,7 @@ jobs:
 
             # 3. Render 3-Second 3D Glass Outro in Remotion (90 frames @ 30fps)
             npx remotion render src/index.tsx ShortsGlassOutro "final_output/outro_3s.mp4" \
-              --props='{"thumbnailSrc":"current_thumb.png","headline":"WATCH FULL MOVIE STORY","subtext":"(First link in description 👇)"}' \
+              --props='{"thumbnailSrc":"current_thumb.png","headline":"WATCH FULL VIDEO","subtext":"(First link in description 👇)"}' \
               --codec=h264
 
             # 4. Smoothly Crossfade 15s Hook with 3s Outro (18s total) + Sub-bass impact
