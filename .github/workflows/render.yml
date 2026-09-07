@@ -368,7 +368,7 @@ jobs:
 
   # ---------------------------------------------------------
   # ---------------------------------------------------------
-  # PHASE 2c: download_matrix — 5 Parallel Gradio FLUX.1-schnell Workers
+  # PHASE 2c: download_matrix — 2 Parallel Workers (Vibes.ai Layer 0 + FLUX Fallback)
   # ---------------------------------------------------------
   download_matrix:
     needs: [creation_job, brain_prep_job]
@@ -377,7 +377,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        worker: [0, 1, 2, 3, 4]
+        worker: [0, 1]
     steps:
       - uses: actions/checkout@v4
 
@@ -436,15 +436,15 @@ jobs:
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
-          rclone copy "engine:Stickman Project" . --include "stickman_cloud_cluster.py" --include ".env" --transfers 4
+          rclone copy "engine:Stickman Project" . --include "stickman_cloud_cluster.py" --include ".env" --include "tokens/**" --transfers 4
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "storyboard.json" --include "master_timeline.json" --transfers 4
 
       - name: Install Generation Dependencies
         run: |
-          pip install huggingface_hub gradio_client pillow numpy python-dotenv requests
+          pip install huggingface_hub gradio_client pillow numpy python-dotenv requests VibesAI-api
 
-      - name: Generate Stickman Scenes (Worker ${{ matrix.worker }} / 5)
+      - name: Generate Stickman Scenes (Worker ${{ matrix.worker }} / 2)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_TOKEN_2: ${{ secrets.HF_TOKEN_2 }}
@@ -452,10 +452,12 @@ jobs:
           HF_TOKEN_4: ${{ secrets.HF_TOKEN_4 }}
           HF_TOKEN_5: ${{ secrets.HF_TOKEN_5 }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
+          VIBES_SESSION_1: ${{ secrets.VIBES_SESSION_1 }}
+          VIBES_SESSION_2: ${{ secrets.VIBES_SESSION_2 }}
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
-          python -u stickman_cloud_cluster.py --storyboard "public/channels/$CHANNEL/$VAULT/storyboard.json" --output_dir "public/channels/$CHANNEL/$VAULT/assets" --worker_id ${{ matrix.worker }} --total_workers 5
+          python -u stickman_cloud_cluster.py --storyboard "public/channels/$CHANNEL/$VAULT/storyboard.json" --output_dir "public/channels/$CHANNEL/$VAULT/assets" --worker_id ${{ matrix.worker }} --total_workers 2
 
       - name: Sync Rendered Assets to Google Drive
         run: |
