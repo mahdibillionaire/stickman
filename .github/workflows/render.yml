@@ -547,6 +547,8 @@ jobs:
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" --include "master_timeline.json" --include "master_audio.wav" -v
+          # Pre-create chunks folder atomically before parallel render_matrix launches
+          rclone mkdir "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT/chunks" -v
 
   # ---------------------------------------------------------
   # PHASE 3: render_matrix â€” 20 Parallel Remotion 2K Workers
@@ -622,6 +624,10 @@ jobs:
             cp "public/channels/$CHANNEL/$VAULT/master_audio.wav" public/master_audio.wav
           elif [ -f "public/channels/$CHANNEL/$VAULT/voiceover.wav" ]; then
             cp "public/channels/$CHANNEL/$VAULT/voiceover.wav" public/master_audio.wav
+          fi
+          # Atomic pre-creation guard in case of RENDER_ONLY
+          if [ "${{ matrix.chunk }}" -eq 0 ]; then
+            rclone mkdir "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" || true
           fi
 
       - name: Install Remotion Dependencies
@@ -732,6 +738,9 @@ jobs:
       - name: Download Rendered Chunks & Master Audio
         run: |
           mkdir -p chunks
+          # Deduplicate any duplicate chunks folders in Google Drive before copying
+          rclone dedupe --dedupe-mode newest "data:Stickman Project/public/channels/$CHANNEL/$VAULT" || true
+          rclone dedupe --dedupe-mode newest "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" || true
           for _retry in 1 2 3 4 5; do
             rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" chunks/ --transfers 16 && break || sleep 10
           done
