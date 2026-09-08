@@ -533,6 +533,8 @@ jobs:
           rclone copy "engine:Stickman Project" . --include "*.py" --include "epidemic_cookies.json" --include ".env" --transfers 8
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
+          mkdir -p "Channels/$CHANNEL/to upload/$VAULT"
+          rclone copy "data:Stickman Project/Channels/$CHANNEL/to upload/$VAULT" "Channels/$CHANNEL/to upload/$VAULT" --include "metadata.json" --transfers 4 || true
 
       - name: Run Audio Mastering & Final Timeline Assembly
         env:
@@ -546,9 +548,13 @@ jobs:
       - name: Upload Final master_timeline.json to Drive
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
-          rclone copy "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT" --include "master_timeline.json" --include "master_audio.wav" -v
+          CHANNEL="${{ inputs.channel_name }}"
+          rclone copy "public/channels/$CHANNEL/$VAULT" "data:Stickman Project/public/channels/$CHANNEL/$VAULT" --include "master_timeline.json" --include "master_audio.wav" --include "metadata.json" -v
+          if [ -f "Channels/$CHANNEL/to upload/$VAULT/metadata.json" ]; then
+            rclone copy "Channels/$CHANNEL/to upload/$VAULT" "data:Stickman Project/Channels/$CHANNEL/to upload/$VAULT" --include "metadata.json" -v
+          fi
           # Pre-create chunks folder atomically before parallel render_matrix launches
-          rclone mkdir "data:Stickman Project/public/channels/${{ inputs.channel_name }}/$VAULT/chunks" -v
+          rclone mkdir "data:Stickman Project/public/channels/$CHANNEL/$VAULT/chunks" -v
 
   # ---------------------------------------------------------
   # PHASE 3: render_matrix â€” 20 Parallel Remotion 2K Workers
@@ -869,6 +875,9 @@ jobs:
               rclone copy "$t_img" "data:Stickman Project/Channels/$CHANNEL/to upload/$VAULT" -v
             fi
           done
+          if [ -s "public/channels/$CHANNEL/$VAULT/metadata.json" ]; then
+            rclone copy "public/channels/$CHANNEL/$VAULT" "data:Stickman Project/Channels/$CHANNEL/to upload/$VAULT" --include "metadata.json" -v
+          fi
           rclone purge --drive-use-trash=false "data:Stickman Project/public/channels/$CHANNEL/$VAULT" || true
 
       - name: Run YouTube Uploader
