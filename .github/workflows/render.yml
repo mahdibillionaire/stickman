@@ -37,17 +37,23 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+  packages: read
+
 env:
   INPUT_TOPIC: ${{ inputs.topic }}
 
 jobs:
 
   # ---------------------------------------------------------
-  # PHASE 1: creation_job â€” Scriptwriting & Orchestration
+  # PHASE 1: creation_job — Scriptwriting & Orchestration
   # ---------------------------------------------------------
   creation_job:
     if: inputs.action_type != 'RENDER_ONLY'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     outputs:
       vault_name: ${{ steps.orchestrator.outputs.vault_name }}
       total_frames: ${{ steps.orchestrator.outputs.total_frames }}
@@ -57,16 +63,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install System Dependencies
-        run: |
-          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
-          sudo rm -f /etc/apt/sources.list.d/azure-cli.list || true
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install rclone jq sox libsox-fmt-all xvfb xclip -y && break || sleep 10; done
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure rclone Silently
         env:
@@ -134,7 +132,6 @@ jobs:
           TOPIC: ${{ inputs.topic }}
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
-          pip install -r requirements.txt
           rclone copy "engine:Stickman Project" . --filter "+ *.py" --filter "+ *.json" --filter "- *" --transfers 8 || true
           if [ -f "orchestrator.py" ]; then
             xvfb-run -a --server-args="-screen 0 1920x1080x24" python -u orchestrator.py
@@ -157,22 +154,6 @@ jobs:
           fi
           echo "total_frames=$TOTAL_FRAMES" >> $GITHUB_OUTPUT
 
-      - name: Cache HuggingFace Models
-        uses: actions/cache@v4
-        id: hf-cache
-        with:
-          path: ~/.cache/huggingface
-          key: hf-cache-qwen3-tts
-
-      - name: Pre-download Qwen3-TTS Model
-        if: steps.hf-cache.outputs.cache-hit != 'true'
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          for _retry in 1 2 3 4 5; do python -m pip install "huggingface_hub<1.0" && break || { echo "Command failed, retrying..."; sleep 15; }; done
-          if [ -n "$HF_TOKEN" ]; then huggingface-cli login --token "$HF_TOKEN" || true; else echo "No HF_TOKEN provided..."; fi
-          huggingface-cli download Qwen/Qwen3-TTS-12Hz-1.7B-Base
-
   # ---------------------------------------------------------
   # PHASE 2a: tts_matrix â€” 15 Parallel Voiceover Workers
   # ---------------------------------------------------------
@@ -180,6 +161,8 @@ jobs:
     needs: [creation_job]
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_tts != 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     strategy:
       fail-fast: false
       matrix:
@@ -187,14 +170,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install System Dependencies
-        run: |
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install rclone jq sox libsox-fmt-all -y && break || sleep 10; done
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure rclone Silently
         env:
@@ -248,17 +225,6 @@ jobs:
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --include "script.txt" --include "*.wav" --transfers 8 || true
 
-      - name: Cache HuggingFace Models
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/huggingface
-          key: hf-cache-qwen3-tts
-
-      - name: Install Python Dependencies
-        run: |
-          for _retry in 1 2 3 4 5; do if [ -f requirements.txt ]; then python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; python -m pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu; fi && break || { echo "Command failed, retrying..."; sleep 15; }; done
-          for _retry in 1 2 3 4 5; do python -m pip install -U qwen-tts faster-whisper soundfile python-dotenv requests "huggingface_hub<1.0" && break || { echo "Command failed, retrying..."; sleep 15; }; done
-
       - name: Run TTS Worker
         env:
           TTS_WORKER_ID: ${{ matrix.worker }}
@@ -285,17 +251,13 @@ jobs:
     needs: [creation_job, tts_matrix]
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_prep != 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install FFmpeg & rclone
-        run: |
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install -y ffmpeg rclone jq sox libsox-fmt-all && break || sleep 10; done
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure rclone Silently
         env:
@@ -347,10 +309,6 @@ jobs:
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
 
-      - name: Install Python Dependencies
-        run: |
-          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install -r requirements.txt
 
       - name: Run The_Brain PREP phase (Audio Stitch + WhisperX + Storyboard)
         env:
@@ -374,6 +332,8 @@ jobs:
     needs: [creation_job, brain_prep_job]
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     strategy:
       fail-fast: false
       matrix:
@@ -381,14 +341,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install rclone
-        run: |
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install rclone jq -y && break || sleep 10; done
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure rclone Silently
         env:
@@ -442,7 +396,7 @@ jobs:
 
       - name: Install Generation Dependencies
         run: |
-          pip install huggingface_hub gradio_client pillow numpy python-dotenv requests VibesAI-api
+          pip install --no-cache-dir VibesAI-api
 
       - name: Generate Stickman Scenes (Worker ${{ matrix.worker }} / 2)
         env:
@@ -466,23 +420,19 @@ jobs:
           rclone copy "public/channels/$CHANNEL/$VAULT/assets" "data:Stickman Project/public/channels/$CHANNEL/$VAULT/assets" --transfers 16 -v
 
   # ---------------------------------------------------------
-  # PHASE 2d: brain_finish_job â€” Audio Mastering & Master Timeline Merge
+  # PHASE 2d: brain_finish_job — Audio Mastering & Master Timeline Merge
   # ---------------------------------------------------------
   brain_finish_job:
     needs: [creation_job, brain_prep_job, download_matrix]
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY'
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install FFmpeg & rclone
-        run: |
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install -y ffmpeg rclone jq && break || sleep 10; done
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Configure rclone Silently
         env:
@@ -542,7 +492,6 @@ jobs:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           NVIDIA_API_KEY_2: ${{ secrets.NVIDIA_API_KEY_2 }}
         run: |
-          pip install -r requirements.txt
           python -u The_Brain_Stickman.py --phase finish --vault "${{ needs.creation_job.outputs.vault_name }}" --channel "${{ inputs.channel_name }}"
 
       - name: Upload Final master_timeline.json to Drive

@@ -145,3 +145,15 @@ export const CaptionDirector = ({ scene }: any) => {
         </AbsoluteFill>
     );
 };
+
+export const GlobalCaptionDirector = ({ scenes }: { scenes: any[] }) => {
+    return (
+        <>
+            {scenes.map((scene, i) => (
+                <Sequence key={scene.scene_id || i} from={scene.startFrame} durationInFrames={scene.visualDurFrames}>
+                    <CaptionDirector scene={scene} />
+                </Sequence>
+            ))}
+        </>
+    );
+};
