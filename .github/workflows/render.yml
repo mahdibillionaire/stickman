@@ -850,7 +850,7 @@ jobs:
           rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "distribution_engine.py" --include "pinterest_bot.py" --include "client_secrets.json" --transfers 4 || true
           mkdir -p tokens
           rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
-          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy pillow
           python -u youtube_uploader.py || echo "[!] YouTube upload completed or bypassed."
 
   upload_only:
@@ -866,7 +866,7 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install -y rclone jq && break || sleep 10; done
+          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install -y ffmpeg rclone jq && break || sleep 10; done
 
       - name: Configure rclone Silently
         env:
@@ -925,7 +925,7 @@ jobs:
           rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "distribution_engine.py" --include "pinterest_bot.py" --include "client_secrets.json" --transfers 4 || true
           mkdir -p tokens
           rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
-          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy pillow
           echo "Running YouTube Uploader..."
           python -u youtube_uploader.py || echo "[!] YouTube upload completed or bypassed."
 
