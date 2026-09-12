@@ -13,6 +13,7 @@ on:
           - CREATE_AUTOMATIC
           - RESUME
           - RENDER_ONLY
+          - UPLOAD_ONLY
       channel_name:
         description: 'Channel to operate on'
         required: true
@@ -50,7 +51,7 @@ jobs:
   # PHASE 1: creation_job — Scriptwriting & Orchestration
   # ---------------------------------------------------------
   creation_job:
-    if: inputs.action_type != 'RENDER_ONLY'
+    if: inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
@@ -167,7 +168,7 @@ jobs:
   # ---------------------------------------------------------
   tts_matrix:
     needs: [creation_job]
-    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_tts != 'true'
+    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_tts != 'true'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
@@ -257,7 +258,7 @@ jobs:
   # ---------------------------------------------------------
   brain_prep_job:
     needs: [creation_job, tts_matrix]
-    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_prep != 'true'
+    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_prep != 'true'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
@@ -338,7 +339,7 @@ jobs:
   # ---------------------------------------------------------
   download_matrix:
     needs: [creation_job, brain_prep_job]
-    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
+    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
@@ -432,7 +433,7 @@ jobs:
   # ---------------------------------------------------------
   brain_finish_job:
     needs: [creation_job, brain_prep_job, download_matrix]
-    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY'
+    if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
@@ -518,7 +519,7 @@ jobs:
   # ---------------------------------------------------------
   render_matrix:
     needs: [creation_job, brain_finish_job]
-    if: always() && !cancelled() && !failure()
+    if: always() && !cancelled() && !failure() && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -619,7 +620,7 @@ jobs:
   # ---------------------------------------------------------
   stitch_and_upload:
     needs: [creation_job, render_matrix]
-    if: always() && !cancelled() && !failure()
+    if: always() && !cancelled() && !failure() && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -851,4 +852,81 @@ jobs:
           rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
           pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy
           python -u youtube_uploader.py || echo "[!] YouTube upload completed or bypassed."
+
+  upload_only:
+    if: inputs.action_type == 'UPLOAD_ONLY'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install System Dependencies
+        run: |
+          for _retry in 1 2 3; do sudo apt-get update && sudo apt-get install -y rclone jq && break || sleep 10; done
+
+      - name: Configure rclone Silently
+        env:
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$E_ACCESS" ]; then
+            ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          else
+            ENGINE_TOKEN=$(echo "$ENGINE_TOKEN_RAW" | jq -c .)
+          fi
+
+          D_ACCESS=$(echo "$DATA_TOKEN_RAW" | jq -r '.token // .access_token // empty')
+          D_REFRESH=$(echo "$DATA_TOKEN_RAW" | jq -r '.refresh_token // empty')
+          D_EXPIRY=$(echo "$DATA_TOKEN_RAW" | jq -r '.expiry // empty')
+          if [ -n "$D_ACCESS" ]; then
+            DATA_TOKEN="{\"access_token\":\"$D_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$D_REFRESH\",\"expiry\":\"$D_EXPIRY\"}"
+          else
+            DATA_TOKEN=$(echo "$DATA_TOKEN_RAW" | jq -c .)
+          fi
+
+          cat << EOF > ~/.config/rclone/rclone.conf
+          [engine]
+          type = drive
+          client_id = $CLIENT_ID
+          client_secret = $CLIENT_SECRET
+          scope = drive
+          token = $ENGINE_TOKEN
+
+          [data]
+          type = drive
+          client_id = $CLIENT_ID
+          client_secret = $CLIENT_SECRET
+          scope = drive
+          token = $DATA_TOKEN
+          EOF
+
+      - name: Run YouTube Uploader
+        env:
+          AUTO_TARGET_FOLDER: ${{ inputs.topic != '' && format('Channels/{0}/to upload/{1}', inputs.channel_name, inputs.topic) || 'BULK' }}
+          CURRENT_CHANNEL: ${{ inputs.channel_name }}
+          DATA_ROOT: "Stickman Project"
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+        run: |
+          CHANNEL="${{ inputs.channel_name }}"
+          mkdir -p "Channels/$CHANNEL/to upload"
+          echo "Syncing pending uploads from Google Drive..."
+          rclone copy "data:Stickman Project/Channels/$CHANNEL/to upload" "Channels/$CHANNEL/to upload" --transfers 8 -v || true
+          echo "Downloading uploader script and tokens..."
+          rclone copy "engine:Stickman Project" . --include "youtube_uploader.py" --include "distribution_engine.py" --include "pinterest_bot.py" --include "client_secrets.json" --transfers 4 || true
+          mkdir -p tokens
+          rclone copy "data:Stickman Project/tokens" tokens --transfers 4 || true
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib requests tweepy
+          echo "Running YouTube Uploader..."
+          python -u youtube_uploader.py || echo "[!] YouTube upload completed or bypassed."
+
 
