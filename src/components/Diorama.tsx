@@ -6,9 +6,9 @@ import {
   interpolate, 
   Easing, 
   OffthreadVideo, 
-  Img, 
   staticFile as remotionStaticFile 
 } from "remotion";
+import { SafeImage as Img } from './SafeImage';
 import React from "react";
 import { CinematicTextureWrapper } from './CinematicTextureWrapper';
 

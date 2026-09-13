@@ -1,10 +1,10 @@
 import React from 'react';
 import { 
   AbsoluteFill, 
-  Img, 
   OffthreadVideo, 
   staticFile as remotionStaticFile 
 } from 'remotion';
+import { SafeImage as Img } from './SafeImage';
 
 import { PaperTextureWrapper } from './PaperTextureWrapper';
 
