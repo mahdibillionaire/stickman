@@ -181,6 +181,9 @@ const CinematicOverlay = ({ src, durationInFrames }: { src: string, durationInFr
 
 const SceneContent = ({ scene, index }: any) => {
     const { fps } = useVideoConfig();
+    const isLiquidGrid = (scene.scene_type === 'dynamic_grid' || scene.visual?.scene_type === 'dynamic_grid');
+    const isAnimatedNumber = scene.graphics && ['animatednumber', 'animated_number'].includes(String(scene.graphics.graphics_type || '').toLowerCase());
+
     return (
         <AbsoluteFill>
             {/* VISUAL ROUTING ENGINE */}
@@ -190,7 +193,7 @@ const SceneContent = ({ scene, index }: any) => {
                 <CinematicChapterReveal chapterNumber={scene.chapter_payload?.chapterNumber || 1} subtitle={scene.chapter_payload?.subtitle || ""} bgImgUrl={scene.visual?.assets?.find((a:any) => a.role === 'bg_chapter')?.local_path || ""} leftAssetUrl={scene.visual?.assets?.find((a:any) => a.role === 'left_chapter')?.local_path || ""} rightAssetUrl={scene.visual?.assets?.find((a:any) => a.role === 'right_chapter')?.local_path || ""} sfxUrl={scene.chapter_payload?.sfxUrl || scene.visual?.sfxUrl || scene.sfxUrl} accentColor={scene.chapter_payload?.accentColor || scene.visual?.accentColor || scene.accentColor} />
             ) : (scene.scene_type === 'magnates_2.5d' || scene.visual?.scene_type === 'magnates_2.5d' || scene.scene_type === 'two_part_whip' || scene.visual?.scene_type === 'two_part_whip') ? (
                 <MagnatesStage payload={scene.visual || {}} durationInFrames={Math.max(1, scene.visualDurFrames || 1)} />
-            ) : (scene.scene_type === 'dynamic_grid' || scene.visual?.scene_type === 'dynamic_grid') ? (
+            ) : isLiquidGrid ? (
                 <DynamicLiquidGrid bgVideoUrl={scene.media_paths?.[0] || scene.media_path || ''} assets={(scene.visual?.assets || scene.assets || []).filter((a: any) => a.layer !== 'background' && a.type !== 'video').map((a: any, idx: number) => ({url: a.local_path || a.downloaded_path || '', title: a.title || '', subtitle: a.subtitle || '', trigger_frame: a.trigger_start_ms ? Math.round(((a.trigger_start_ms - (scene.timing?.start_ms || 0)) / 1000) * fps) : (a.trigger_frame ?? (idx === 0 ? 0 : 9999))}))} />
             ) : (
                 <div style={{ position: 'absolute', inset: 0, animationName: scene.cutStyle === 'split_cut' ? 'none' : 'crossFocus', animationDuration: `${scene.overlapFrames / fps}s` }}>
@@ -210,7 +213,7 @@ const SceneContent = ({ scene, index }: any) => {
             )}
             <EffectsDirector variants={scene.editorialVariants} events={scene.events} />
             <Sequence from={0} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)}>
-                {scene.graphics && scene.graphics.graphics_type && scene.graphics.graphics_type !== 'none' ? <MotionGraphicsRouter graphics={{...scene.graphics, trigger_frame: scene.graphics.trigger_start_ms ? Math.round(((scene.graphics.trigger_start_ms - scene.timing.start_ms) / 1000) * fps) : scene.graphics.trigger_frame}} sceneIndex={index} variants={scene.editorialVariants} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)} /> : null}
+                {scene.graphics && scene.graphics.graphics_type && scene.graphics.graphics_type !== 'none' && !(isLiquidGrid && isAnimatedNumber) ? <MotionGraphicsRouter graphics={{...scene.graphics, trigger_frame: scene.graphics.trigger_start_ms ? Math.round(((scene.graphics.trigger_start_ms - scene.timing.start_ms) / 1000) * fps) : scene.graphics.trigger_frame}} sceneIndex={index} variants={scene.editorialVariants} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)} /> : null}
             </Sequence>
             {scene.overlay_image && (
                 <Sequence from={Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps)} durationInFrames={Math.max(1, scene.visualDurFrames - Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps))}>
@@ -262,7 +265,7 @@ const AutomatedDocumentary = () => {
 
   return (
     <GlobalFinisher>
-      <AbsoluteFill style={{ backgroundColor: '#000' }}>
+      <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
          
          {/* 0. UNIFIED MASTER AUDIO TRACK (Locks audio and video frame-for-frame within each rendered chunk) */}
          <Audio src={staticFile("master_audio.wav")} onError={() => {}} />
