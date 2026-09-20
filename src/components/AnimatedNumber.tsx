@@ -70,27 +70,32 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
     const entranceScale = interpolate(entranceSprg, [0, 1], [0.94, 1]);
     const entranceY = interpolate(entranceSprg, [0, 1], [15, 0]);
 
-    // 4. Robust Universal Formatter (Supports all metrics: plain 100, $100, 100%, 100 MPH, $100M)
+    // 4. Robust Universal Formatter (Supports all metrics: plain 1,000, $1,000, 100%, 100 MPH, $100M)
     const formatValue = (num: number) => {
         if (type === 'year') {
             return { display: Math.round(num).toString(), suffix: "" };
         }
 
+        const cleanSuffixOverride = suffixOverride ? suffixOverride.trim() : "";
+
+        if (cleanSuffixOverride) {
+            const upper = cleanSuffixOverride.toUpperCase();
+            let display = "";
+
+            if (numericValue >= 1e9 && upper.startsWith('B')) {
+                display = (num / 1e9).toFixed(1).replace(/\.0$/, '');
+            } else if (numericValue >= 1e6 && upper.startsWith('M')) {
+                display = (num / 1e6).toFixed(1).replace(/\.0$/, '');
+            } else if (numericValue >= 1e5 && upper.startsWith('K')) {
+                display = (num / 1000).toFixed(0);
+            } else {
+                display = (numericValue % 1 !== 0) ? num.toFixed(1) : Math.round(num).toLocaleString('en-US');
+            }
+            return { display, suffix: cleanSuffixOverride };
+        }
+
         let display = "";
         let computedSuffix = "";
-
-        if (suffixOverride) {
-            if (numericValue >= 1e9 && suffixOverride.toUpperCase().startsWith('B')) {
-                display = (num / 1e9).toFixed(1).replace(/\.0$/, '');
-            } else if (numericValue >= 1e6 && suffixOverride.toUpperCase().startsWith('M')) {
-                display = (num / 1e6).toFixed(1).replace(/\.0$/, '');
-            } else if (numericValue >= 1000 && suffixOverride.toUpperCase().startsWith('K')) {
-                display = (num / 1000).toFixed(1).replace(/\.0$/, '');
-            } else {
-                display = (numericValue % 1 !== 0) ? num.toFixed(1) : Math.round(num).toLocaleString();
-            }
-            return { display, suffix: suffixOverride };
-        }
 
         if (numericValue >= 1e9) {
             display = (num / 1e9).toFixed(1).replace(/\.0$/, '');
@@ -98,11 +103,9 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
         } else if (numericValue >= 1e6) {
             display = (num / 1e6).toFixed(1).replace(/\.0$/, '');
             computedSuffix = "M";
-        } else if (numericValue >= 1000) {
-            display = (num / 1000).toFixed(1).replace(/\.0$/, '');
-            computedSuffix = "K";
         } else {
-            display = (numericValue % 1 !== 0) ? num.toFixed(1) : Math.round(num).toLocaleString();
+            // NEVER truncate thousands to "1" or "1K"! Always format with full comma separators: 1,000, 25,000, etc.
+            display = (numericValue % 1 !== 0) ? num.toFixed(1) : Math.round(num).toLocaleString('en-US');
         }
 
         if (type === 'percent') computedSuffix = "%";
@@ -113,8 +116,8 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
     };
 
     const { display, suffix: formattedSuffix } = formatValue(currentNum);
-    const suffix = suffixOverride !== undefined ? suffixOverride : formattedSuffix;
-    const prefix = prefixOverride !== undefined ? prefixOverride : (type === 'money' ? '$' : '');
+    const suffix = (suffixOverride !== undefined && suffixOverride.trim() !== '') ? suffixOverride.trim() : formattedSuffix;
+    const prefix = (prefixOverride !== undefined && prefixOverride.trim() !== '') ? prefixOverride.trim() : (type === 'money' ? '$' : '');
 
     return (
         <AbsoluteFill style={{
@@ -128,12 +131,13 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
         }}>
             {sfxPath && <SmartAudio src={sfxPath} durationFrames={durationFrames} />}
 
-            {/* THE 2K APEX DOSSIER METRIC PANEL */}
+            {/* THE 2K APEX DOSSIER METRIC PANEL - Dynamic Fluid Layout */}
             <div style={{
                 position: 'relative',
-                minWidth: '580px',
+                width: '90%',
                 maxWidth: '920px',
-                padding: '48px 64px 40px',
+                padding: 'clamp(24px, 2.5vw, 48px) clamp(32px, 3.5vw, 64px) clamp(20px, 2.2vw, 40px)',
+                boxSizing: 'border-box',
                 borderRadius: '24px',
                 background: 'linear-gradient(135deg, rgba(16, 22, 34, 0.88) 0%, rgba(5, 7, 12, 0.96) 100%)',
                 backdropFilter: 'blur(45px) saturate(1.4)',
@@ -161,24 +165,24 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
                 }} />
 
                 {/* 2. Precision Corner Brackets */}
-                <div style={{ position: 'absolute', top: '12px', left: '12px', width: '14px', height: '14px', borderTop: `2px solid ${numColor}`, borderLeft: `2px solid ${numColor}`, opacity: 0.7 }} />
-                <div style={{ position: 'absolute', top: '12px', right: '12px', width: '14px', height: '14px', borderTop: `2px solid ${numColor}`, borderRight: `2px solid ${numColor}`, opacity: 0.7 }} />
-                <div style={{ position: 'absolute', bottom: '12px', left: '12px', width: '14px', height: '14px', borderBottom: `2px solid ${numColor}`, borderLeft: `2px solid ${numColor}`, opacity: 0.7 }} />
-                <div style={{ position: 'absolute', bottom: '12px', right: '12px', width: '14px', height: '14px', borderBottom: `2px solid ${numColor}`, borderRight: `2px solid ${numColor}`, opacity: 0.7 }} />
+                <div style={{ position: 'absolute', top: '12px', left: '12px', width: 'clamp(10px, 1vw, 14px)', height: 'clamp(10px, 1vw, 14px)', borderTop: `2px solid ${numColor}`, borderLeft: `2px solid ${numColor}`, opacity: 0.7 }} />
+                <div style={{ position: 'absolute', top: '12px', right: '12px', width: 'clamp(10px, 1vw, 14px)', height: 'clamp(10px, 1vw, 14px)', borderTop: `2px solid ${numColor}`, borderRight: `2px solid ${numColor}`, opacity: 0.7 }} />
+                <div style={{ position: 'absolute', bottom: '12px', left: '12px', width: 'clamp(10px, 1vw, 14px)', height: 'clamp(10px, 1vw, 14px)', borderBottom: `2px solid ${numColor}`, borderLeft: `2px solid ${numColor}`, opacity: 0.7 }} />
+                <div style={{ position: 'absolute', bottom: '12px', right: '12px', width: 'clamp(10px, 1vw, 14px)', height: 'clamp(10px, 1vw, 14px)', borderBottom: `2px solid ${numColor}`, borderRight: `2px solid ${numColor}`, opacity: 0.7 }} />
 
                 {/* 3. Top Classification Tag (Zero Subtitles) */}
                 <div style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '8px',
-                    fontSize: '13px',
+                    fontSize: 'clamp(10px, 0.7vw, 13px)',
                     fontWeight: 800,
                     letterSpacing: '4px',
                     textTransform: 'uppercase',
                     color: numColor,
                     background: `${numColor}18`,
                     border: `1px solid ${numColor}45`,
-                    padding: '5px 18px',
+                    padding: 'clamp(4px, 0.3vw, 5px) clamp(12px, 1vw, 18px)',
                     borderRadius: '6px',
                     boxShadow: `0 0 20px ${glowColor}`,
                     marginBottom: '20px',
@@ -192,12 +196,12 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
                     display: 'flex',
                     alignItems: 'baseline',
                     justifyContent: 'center',
-                    gap: '12px',
+                    gap: 'clamp(6px, 0.8vw, 12px)',
                     fontVariantNumeric: 'tabular-nums',
                 }}>
                     {prefix ? (
                         <span style={{
-                            fontSize: '84px',
+                            fontSize: 'clamp(42px, 4.4vw, 84px)',
                             fontWeight: 600,
                             color: 'rgba(255, 255, 255, 0.75)',
                             fontFamily: '"JetBrains Mono", monospace',
@@ -208,7 +212,7 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
                     ) : null}
 
                     <span style={{
-                        fontSize: '144px',
+                        fontSize: 'clamp(72px, 7.5vw, 144px)',
                         fontWeight: 900,
                         color: '#FFFFFF',
                         fontFamily: '"Inter", "-apple-system", sans-serif',
@@ -221,7 +225,7 @@ export const AnimatedNumber: React.FC<Props> = ({ numericValue, type = 'generic'
 
                     {suffix ? (
                         <span style={{
-                            fontSize: '72px',
+                            fontSize: 'clamp(36px, 3.8vw, 72px)',
                             fontWeight: 800,
                             color: numColor,
                             fontFamily: '"Inter", sans-serif',
