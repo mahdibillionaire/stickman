@@ -47,26 +47,29 @@ export const StickmanStage: React.FC<StickmanStageProps> = ({ scene, durationInF
   const mediaSrc = resolveMedia(rawSrc);
   const isVideo = typeof rawSrc === 'string' && (rawSrc.endsWith('.mp4') || rawSrc.endsWith('.webm') || rawSrc.endsWith('.mov'));
 
-  // 2. Dynamic Cinematic Camera Engine
+  // 2. High-End Cinematic Camera Engine (Smooth 2K documentary glide)
+  // Subtle, elegant push-in (1.0 -> 1.035) with organic continuous drift
+  // Eliminates violent yo-yo snapping and scale pops between cuts
   const isEven = index % 2 === 0;
-  const cameraScale = isEven
-    ? interpolate(frame, [0, safeDuration], [1.0, 1.07], {
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1.0),
-        extrapolateRight: 'clamp',
-      })
-    : interpolate(frame, [0, safeDuration], [1.06, 1.0], {
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1.0),
-        extrapolateRight: 'clamp',
-      });
+  const cameraScale = interpolate(frame, [0, safeDuration], [1.0, 1.035], {
+    easing: Easing.bezier(0.2, 0.0, 0.2, 1.0),
+    extrapolateRight: 'clamp',
+  });
 
-  // Organic micro-drift (living paper effect)
-  const panX = noise2D('stick_px', frame * 0.015, index * 11.3) * 4;
-  const panY = noise2D('stick_py', frame * 0.015, index * 11.3) * 3;
-  const rot = noise2D('stick_rot', frame * 0.012, index * 11.3) * 0.3;
+  // Smooth, organic micro-drift without discontinuous noise teleports
+  const progress = frame / safeDuration;
+  const panX = Math.sin(progress * Math.PI) * (isEven ? 3 : -3);
+  const panY = Math.cos(progress * Math.PI * 0.5) * (isEven ? 2 : -2);
+  const rot = (progress - 0.5) * (isEven ? 0.25 : -0.25);
+
+  // Buttery-smooth 3-frame micro-fade on entry to prevent harsh visual tearing on cut
+  const enterOpacity = interpolate(frame, [0, 3], [0.88, 1.0], {
+    extrapolateRight: 'clamp',
+  });
 
   return (
     <PaperTextureWrapper>
-      <AbsoluteFill style={{ backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
+      <AbsoluteFill style={{ backgroundColor: '#FFFFFF', overflow: 'hidden', opacity: enterOpacity }}>
         {/* 2K Main Stage Viewport with Dynamic Camera Motion */}
         <AbsoluteFill
           style={{

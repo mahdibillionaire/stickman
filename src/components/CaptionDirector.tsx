@@ -113,7 +113,9 @@ export const CaptionDirector = ({ scene }: any) => {
                     const nextStartFrame = Math.max(0, Math.round(((chunks[i+1].start_ms - sceneStartMs) / 1000) * fps));
                     chunkDurationFrames = Math.max(1, nextStartFrame - chunkStartFrame);
                 } else {
-                    chunkDurationFrames += 15;
+                    // Final chunk in scene: hold cleanly to scene end without exceeding parent container
+                    const maxAllowed = Math.max(1, durationFrames - chunkStartFrame);
+                    chunkDurationFrames = Math.min(maxAllowed, chunkDurationFrames + 8);
                 }
                 
                 // Fix 1-frame desync drift by calculating absolute frames relative to scene start
@@ -128,13 +130,14 @@ export const CaptionDirector = ({ scene }: any) => {
                     };
                 });
                 
+                const cleanPreset = String(preset || '').toLowerCase();
                 let CaptionComponent = <GlassPillCaption script={script} />;
                 
-                if (preset === 'HighlightReelCaption') CaptionComponent = <HighlightReelCaption script={script} />;
-                else if (preset === 'PremiumLeftSpatial') CaptionComponent = <PremiumLeftSpatial script={script} chunkIndex={i} />;
-                else if (preset === 'PremiumRightSpatial') CaptionComponent = <PremiumRightSpatial script={script} chunkIndex={i} />;
-                else if (preset === 'LiquidMirrorCaption') CaptionComponent = <LiquidMirrorCaption script={script} />;
-                else if (preset === 'CinematicDocumentaryCaption') CaptionComponent = <CinematicDocumentaryCaption script={script} />;
+                if (cleanPreset.includes('highlightreel')) CaptionComponent = <HighlightReelCaption script={script} />;
+                else if (cleanPreset.includes('leftspatial')) CaptionComponent = <PremiumLeftSpatial script={script} chunkIndex={i} />;
+                else if (cleanPreset.includes('rightspatial')) CaptionComponent = <PremiumRightSpatial script={script} chunkIndex={i} />;
+                else if (cleanPreset.includes('liquidmirror')) CaptionComponent = <LiquidMirrorCaption script={script} />;
+                else if (cleanPreset.includes('cinematicdocumentary')) CaptionComponent = <CinematicDocumentaryCaption script={script} />;
 
                 return (
                     <Sequence key={i} from={chunkStartFrame} durationInFrames={chunkDurationFrames}>
