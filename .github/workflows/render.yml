@@ -315,6 +315,7 @@ jobs:
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "*.py" --include "epidemic_cookies.json" --include ".env" --transfers 8
+          rclone copy "engine:Stickman Project/public/audio/sfx" "public/audio/sfx" --transfers 4 || true
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
 
@@ -490,6 +491,7 @@ jobs:
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
           rclone copy "engine:Stickman Project" . --include "*.py" --include "epidemic_cookies.json" --include ".env" --transfers 8
+          rclone copy "engine:Stickman Project/public/audio/sfx" "public/audio/sfx" --transfers 4 || true
           mkdir -p "public/channels/$CHANNEL/$VAULT"
           rclone copy "data:Stickman Project/public/channels/$CHANNEL/$VAULT" "public/channels/$CHANNEL/$VAULT" --transfers 16
           mkdir -p "Channels/$CHANNEL/to upload/$VAULT"
