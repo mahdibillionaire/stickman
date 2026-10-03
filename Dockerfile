@@ -102,6 +102,7 @@ RUN pip install --no-cache-dir \
     rembg \
     imagehash \
     gradio_client \
+    google-antigravity \
     && python -m playwright install --with-deps chromium \
     && pip install --no-cache-dir --no-deps "setuptools<82.0.0"
 

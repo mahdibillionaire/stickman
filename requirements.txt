@@ -24,3 +24,4 @@ seleniumbase
 undetected-chromedriver
 pyperclip
 git+https://github.com/m-bain/whisperx.git
+google-antigravity
