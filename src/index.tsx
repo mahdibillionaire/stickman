@@ -27,12 +27,24 @@ import { LayoutRouter, SmartMedia } from './components/Layouts';
 import { TypographyRouter } from './components/Typography';
 import { MotionGraphicsRouter } from './components/MotionGraphics';
 import { EffectsDirector } from './components/Effects';
-import { CaptionDirector, GlobalCaptionDirector } from './components/CaptionDirector';
+import { CaptionDirector } from './components/CaptionDirector';
 import { DynamicLiquidGrid } from './components/DynamicLiquidGrid';
-import { StickmanStage } from './components/StickmanStage';
+import { MonolithEngine } from './components/MonolithEngine';
+import { Floating3DCardsCanvas } from './components/Floating3DCards';
 import { GlobalFinisher } from './components/GlobalFinisher';
 import { CinematicChapterReveal } from './components/CinematicChapterReveal';
 import { MagnatesStage } from './components/MagnatesStage';
+import { ZAxisCrashTransition } from './components/transition1';
+import { SpatialWhipTransition } from './components/transition2';
+import { ThermalFlareTransition } from './components/transition3';
+import { RackToBlackTransition } from './components/transition4';
+import { LumaDissolveTransition } from './components/transition5';
+import { ParallaxSlideTransition } from './components/transition6';
+import { ZoomSpinVortexTransition } from './components/transition7';
+import { PrismDispersionTransition } from './components/transition8';
+import { GlitchDataTearTransition } from './components/transition9';
+import { CinematicMatchCutTransition } from './components/transition10';
+import { CameraWallTransition } from './components/transition11';
 import { ShortsGlassOutro } from './components/ShortsGlassOutro';
 
 
@@ -47,6 +59,45 @@ const getParallaxMultiplier = (role: string, depth: number) => {
 
 const rawAny = masterJsonRaw as any;
 const normalisedTimeline = (rawAny.timeline ?? []).map((s: any) => s).filter(Boolean);
+
+
+// ==========================================
+// TRANSITION ROTATION ENGINE
+// ==========================================
+const transitionPool = [
+    'ZAxisCrash', 'SpatialWhip', 'ThermalFlare', 'RackToBlack',
+    'LumaDissolve', 'ParallaxSlide', 'ZoomSpinVortex',
+    'PrismDispersion', 'GlitchDataTear', 'CinematicMatchCut',
+    'CameraWall'
+];
+let activePool = [...transitionPool];
+
+const shuffle = (array: any[], seedStr: string) => {
+    let currentIndex = array.length, randomIndex;
+    let seedOffset = 0;
+    while (currentIndex != 0) {
+        randomIndex = Math.floor(seededRandom(seedStr + seedOffset) * currentIndex);
+        seedOffset++;
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+    }
+    return array;
+};
+
+const videoSeed = (masterJsonRaw as any)?.channel || 'default_video';
+activePool = shuffle([...transitionPool], videoSeed);
+let transitionIndex = 0;
+
+normalisedTimeline.forEach((scene: any, i: number) => {
+    // 1. Authoritative Semantic Transition from The_Brain.py master timeline
+    const trans = scene.outgoingTransition ?? scene.transition;
+    if (trans !== undefined && trans !== null && trans !== '') {
+        scene.outgoingTransition = trans;
+        return;
+    }
+    // 2. Cinematic Default Fallback: Hard Cut (none)
+    scene.outgoingTransition = 'none';
+});
 
 const masterJson: any = {
   ...rawAny,
@@ -193,21 +244,46 @@ const CinematicOverlay = ({ src, durationInFrames }: { src: string, durationInFr
 
 const SceneContent = ({ scene, index }: any) => {
     const { fps } = useVideoConfig();
-    const isLiquidGrid = (scene.scene_type === 'dynamic_grid' || scene.visual?.scene_type === 'dynamic_grid');
+    const isLiquidGrid = ((scene.scene_type === 'dynamic_grid' || scene.visual?.scene_type === 'dynamic_grid') && (scene.visual?.assets || scene.assets || []).some((a: any) => (a.local_path || a.downloaded_path) && a.layer !== 'background' && a.type !== 'video'));
     const isAnimatedNumber = scene.graphics && ['animatednumber', 'animated_number'].includes(String(scene.graphics.graphics_type || '').toLowerCase());
-    const isYouTube = scene.scene_type === 'youtube' || scene.visual?.scene_type === 'youtube' || (scene.media_paths?.[0] && String(scene.media_paths[0]).toLowerCase().includes('youtube')) || (scene.media_path && String(scene.media_path).toLowerCase().includes('youtube')) || Boolean(scene.visual?.youtube_query) || Boolean(scene.youtube_query);
 
     return (
         <AbsoluteFill>
             {/* VISUAL ROUTING ENGINE */}
-            {(scene.scene_type === 'stickman' || !scene.scene_type || scene.flux_prompt || scene.image_url) ? (
-                <StickmanStage scene={scene} durationInFrames={scene.visualDurFrames} index={index} />
+            {(scene.scene_type === 'monolith' && scene.monolith_payload?.assetSrc && String(scene.monolith_payload.assetSrc).trim() !== '') ? (
+                <MonolithEngine payload={{...(scene.monolith_payload || {}), bgVideoSrc: scene.media_paths?.[0] ? staticFile(scene.media_paths[0]) : '', assetSrc: staticFile(scene.monolith_payload.assetSrc)}} />
+            ) : (scene.scene_type === 'floating_cards' || scene.visual?.scene_type === 'floating_cards' || (scene.floating_cards_payload && Object.keys(scene.floating_cards_payload).length > 0) || (scene.visual?.floating_cards_payload && Object.keys(scene.visual.floating_cards_payload).length > 0)) ? (
+                <Floating3DCardsCanvas payload={{
+                    ...(scene.floating_cards_payload || scene.visual?.floating_cards_payload || {}),
+                    actualDurationFrames: scene.visualDurFrames,
+                    bgVideoSrc: scene.media_paths?.[0] ? staticFile(scene.media_paths[0]) : '',
+                    subjects: ((scene.floating_cards_payload?.subjects || scene.visual?.floating_cards_payload?.subjects) || []).map((sub: any, i: number) => {
+                        const asset = (scene.visual?.assets || [])[i];
+                        const resolvedImg = asset?.local_path || sub.imageUrl || '';
+                        return {
+                            ...sub,
+                            imageUrl: resolvedImg,
+                        };
+                    }),
+                }} />
             ) : (scene.scene_type === 'chapter_reveal') ? (
                 <CinematicChapterReveal chapterNumber={scene.chapter_payload?.chapterNumber || 1} subtitle={scene.chapter_payload?.subtitle || ""} bgImgUrl={scene.visual?.assets?.find((a:any) => a.role === 'bg_chapter')?.local_path || ""} leftAssetUrl={scene.visual?.assets?.find((a:any) => a.role === 'left_chapter')?.local_path || ""} rightAssetUrl={scene.visual?.assets?.find((a:any) => a.role === 'right_chapter')?.local_path || ""} sfxUrl={scene.chapter_payload?.sfxUrl || scene.visual?.sfxUrl || scene.sfxUrl} accentColor={scene.chapter_payload?.accentColor || scene.visual?.accentColor || scene.accentColor} />
             ) : (scene.scene_type === 'magnates_2.5d' || scene.visual?.scene_type === 'magnates_2.5d' || scene.scene_type === 'two_part_whip' || scene.visual?.scene_type === 'two_part_whip') ? (
                 <MagnatesStage payload={scene.visual || {}} durationInFrames={Math.max(1, scene.visualDurFrames || 1)} />
             ) : isLiquidGrid ? (
-                <DynamicLiquidGrid bgVideoUrl={scene.media_paths?.[0] || scene.media_path || ''} assets={(scene.visual?.assets || scene.assets || []).filter((a: any) => a.layer !== 'background' && a.type !== 'video').map((a: any, idx: number) => ({url: a.local_path || a.downloaded_path || '', title: a.title || '', subtitle: a.subtitle || '', trigger_frame: a.trigger_start_ms ? Math.round(((a.trigger_start_ms - (scene.timing?.start_ms || 0)) / 1000) * fps) : (a.trigger_frame ?? (idx === 0 ? 0 : 9999))}))} />
+                <DynamicLiquidGrid 
+                    bgVideoUrl={scene.media_paths?.[0] || scene.media_path || ''} 
+                    assets={(scene.visual?.assets || scene.assets || []).filter((a: any) => (a.local_path || a.downloaded_path) && a.layer !== 'background' && a.type !== 'video').map((a: any) => ({
+                        url: a.local_path || a.downloaded_path || '', 
+                        title: a.title || '', 
+                        subtitle: a.subtitle || '', 
+                        trigger_start_ms: a.trigger_start_ms,
+                        trigger_frame: a.trigger_frame
+                    }))} 
+                    sceneWords={scene.words}
+                    sceneStartMs={scene.timing?.start_ms || 0}
+                    durationInFrames={scene.visualDurFrames || Math.max(1, scene.audioDurFrames - scene.overlapFrames)}
+                />
             ) : (
                 <div style={{ position: 'absolute', inset: 0, animationName: scene.cutStyle === 'split_cut' ? 'none' : 'crossFocus', animationDuration: `${scene.overlapFrames / fps}s` }}>
                     <div style={{ position: 'absolute', inset: 0, animationName: scene.overlay_image ? 'slowZoomBg' : 'none', animationDuration: `${scene.visualDurFrames / fps}s`, animationTimingFunction: 'linear', animationFillMode: 'forwards' }}>
@@ -226,14 +302,39 @@ const SceneContent = ({ scene, index }: any) => {
             )}
             <EffectsDirector variants={scene.editorialVariants} events={scene.events} />
             <Sequence from={0} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)}>
-                {scene.graphics && scene.graphics.graphics_type && scene.graphics.graphics_type !== 'none' && !isYouTube && !(isLiquidGrid && isAnimatedNumber) ? <MotionGraphicsRouter graphics={{...scene.graphics, trigger_frame: scene.graphics.trigger_start_ms ? Math.round(((scene.graphics.trigger_start_ms - scene.timing.start_ms) / 1000) * fps) : scene.graphics.trigger_frame}} sceneIndex={index} variants={scene.editorialVariants} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)} /> : null}
+                {scene.graphics && scene.graphics.graphics_type && scene.graphics.graphics_type !== 'none' && !(isLiquidGrid && isAnimatedNumber) ? <MotionGraphicsRouter graphics={{...scene.graphics, trigger_frame: scene.graphics.trigger_start_ms ? Math.round(((scene.graphics.trigger_start_ms - scene.timing.start_ms) / 1000) * fps) : scene.graphics.trigger_frame}} sceneIndex={index} variants={scene.editorialVariants} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)} /> : null}
             </Sequence>
-            {scene.overlay_image && !isYouTube && (
+            {scene.overlay_image && (
                 <Sequence from={Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps)} durationInFrames={Math.max(1, scene.visualDurFrames - Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps))}>
                     <CinematicOverlay src={scene.overlay_image} durationInFrames={Math.max(1, scene.visualDurFrames - Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps))} />
                 </Sequence>
             )}
-            {/* Captions are rendered by GlobalCaptionDirector at root level — no nested rounding */}
+            {scene.words && scene.words.length > 0 && !isAnimatedNumber && scene.editorialVariants?.captionEnabled !== false && scene.scene_type !== 'floating_cards' && scene.visual?.scene_type !== 'floating_cards' && (scene.scene_type !== 'monolith' || !scene.monolith_payload?.assetSrc) && scene.scene_type !== 'magnates_2.5d' && scene.scene_type !== 'two_part_whip' && (!scene.floating_cards_payload || Object.keys(scene.floating_cards_payload).length === 0) && (!scene.visual?.floating_cards_payload || Object.keys(scene.visual?.floating_cards_payload).length === 0) && (!scene.monolith_payload?.assetSrc) && (scene.caption_preset || scene.visual?.caption_preset) !== 'none' && (
+                <CaptionDirector scene={scene} />
+            )}
+        </AbsoluteFill>
+    );
+};
+
+const TransitionSceneA = ({ scene, index, offsetFrames = 15 }: any) => {
+    return (
+        <Sequence from={offsetFrames - scene.visualDurFrames} layout="none">
+            <SceneContent scene={scene} index={index} />
+        </Sequence>
+    );
+};
+
+const TransitionSceneB = ({ scene, index, offsetFrames = 15 }: any) => {
+    return (
+        <AbsoluteFill>
+            <Sequence durationInFrames={offsetFrames} layout="none">
+                <Freeze frame={0}>
+                    <SceneContent scene={scene} index={index} />
+                </Freeze>
+            </Sequence>
+            <Sequence from={offsetFrames} layout="none">
+                <SceneContent scene={scene} index={index} />
+            </Sequence>
         </AbsoluteFill>
     );
 };
@@ -278,11 +379,8 @@ const AutomatedDocumentary = () => {
 
   return (
     <GlobalFinisher>
-      <AbsoluteFill style={{ backgroundColor: '#FFFFFF' }}>
+      <AbsoluteFill style={{ backgroundColor: '#000' }}>
          
-         {/* 0. UNIFIED MASTER AUDIO TRACK (Locks audio and video frame-for-frame within each rendered chunk) */}
-         <Audio src={staticFile("master_audio.wav")} onError={() => {}} />
-
          {/* 6. Decoupled Audio & Visual Timeline */}
          {mappedScenes.map((scene: any, index: number) => {
             
@@ -294,6 +392,63 @@ const AutomatedDocumentary = () => {
                       <SceneContent scene={scene} index={index} />
                   </Sequence>
 
+                  {/* CUSTOM TRANSITION ROUTER */}
+                  {scene.outgoingTransition && scene.outgoingTransition !== 'none' && mappedScenes[index + 1] && (() => {
+                      const isCameraWall = scene.outgoingTransition === 'CameraWall';
+                      const transDuration = isCameraWall ? 60 : 30;
+                      const offsetFrames = isCameraWall ? 30 : 15;
+
+                      return (
+                          <Sequence 
+                              from={scene.startFrame + scene.visualDurFrames - offsetFrames} 
+                              durationInFrames={transDuration}
+                              style={{ zIndex: 9999 }}
+                          >
+                              {scene.outgoingTransition === 'ZAxisCrash' && (
+                                  <ZAxisCrashTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'SpatialWhip' && (
+                                  <SpatialWhipTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'ThermalFlare' && (
+                                  <ThermalFlareTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'RackToBlack' && (
+                                  <RackToBlackTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'LumaDissolve' && (
+                                  <LumaDissolveTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'ParallaxSlide' && (
+                                  <ParallaxSlideTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'ZoomSpinVortex' && (
+                                  <ZoomSpinVortexTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'PrismDispersion' && (
+                                  <PrismDispersionTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'GlitchDataTear' && (
+                                  <GlitchDataTearTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={25} />
+                              )}
+                              {scene.outgoingTransition === 'CinematicMatchCut' && (
+                                  <CinematicMatchCutTransition SceneA={<TransitionSceneA scene={scene} index={index} />} SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} />} durationInFrames={30} />
+                              )}
+                              {scene.outgoingTransition === 'CameraWall' && (
+                                  <CameraWallTransition 
+                                      SceneA={<TransitionSceneA scene={scene} index={index} offsetFrames={30} />} 
+                                      SceneB={<TransitionSceneB scene={mappedScenes[index + 1]} index={index + 1} offsetFrames={30} />} 
+                                      durationInFrames={60}
+                                      galleryVideos={[
+                                          ...mappedScenes.slice(0, index).map((s: any) => s.visual_asset || s.media_path).filter(Boolean).reverse(),
+                                          ...mappedScenes.slice(index + 2).map((s: any) => s.visual_asset || s.media_path).filter(Boolean)
+                                      ]}
+                                  />
+                              )}
+                          </Sequence>
+                      );
+                  })()}
+
                   {/* DECOUPLED AUDIO SEQUENCE (Allows exact J/L overlapping independently of visual duration) */}
                   <Sequence from={scene.startFrame} durationInFrames={scene.audioDurFrames}>
                       {/* Sub-scene audio triggers go here, master audio handles voiceover */}
@@ -301,10 +456,6 @@ const AutomatedDocumentary = () => {
                </React.Fragment>
             );
          })}
-
-         {/* GLOBAL CAPTION TRACK — flat root-level, single rounding per word, zero progressive drift */}
-         <GlobalCaptionDirector scenes={mappedScenes} />
-
       </AbsoluteFill>
       
       {/* Inline styles for cross-focus animation engine */}
@@ -338,8 +489,20 @@ const RemotionRoot = () => {
   const totalFrames = Math.max(1, Math.round((totalDurationMs / 1000) * 30)) + 60;
   return (
     <>
-      <Composition id="AutomatedDocumentary" component={AutomatedDocumentary} durationInFrames={totalFrames} fps={30} width={2560} height={1440} />
-      <Composition id="ShortsGlassOutro" component={ShortsGlassOutro} durationInFrames={90} fps={30} width={1080} height={1920} defaultProps={{ thumbnailSrc: "test_thumb.png", headline: "WATCH FULL MOVIE STORY", subtext: "(First link in description 👇)" }} />
+      <Composition id="AutomatedDocumentary" component={AutomatedDocumentary} durationInFrames={totalFrames} fps={30} width={2560} height={1333} />
+      <Composition
+        id="ShortsGlassOutro"
+        component={ShortsGlassOutro}
+        durationInFrames={90}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          thumbnailSrc: 'test_thumb.png',
+          headline: 'WATCH FULL VIDEO',
+          subtext: '(First link in description 👇)',
+        }}
+      />
     </>
   );
 };

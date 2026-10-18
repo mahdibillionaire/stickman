@@ -72,7 +72,7 @@ export const GlassPillCaption: React.FC<{ script: WordTiming[] }> = ({ script })
                 fontWeight: isActive ? 800 : 500,
                 
                 textShadow: isActive ? "0 0 24px rgba(255,255,255,0.8)" : "none",
-                transition: "none",
+                transition: "color 0.1s ease-out, opacity 0.2s ease-out",
                 display: "inline-block",
                 letterSpacing: "-1px"
               }}

@@ -13,6 +13,13 @@ Config.setHardwareAcceleration('if-possible');
 
 // Quality optimizations (CRF is INCOMPATIBLE with hardware acceleration - use bitrate instead)
 // Config.setCrf(16); // DISABLED - breaks NVENC
-Config.setPixelFormat('yuv420p');Config.setDelayRenderTimeoutInMilliseconds(120000);
+Config.setPixelFormat('yuv420p');
+Config.setDelayRenderTimeoutInMilliseconds(120000);
+
+// Chromium stability and large image texture processing
+Config.setChromiumDisableWebSecurity(true);
+Config.setChromiumIgnoreCertificateErrors(true);
+Config.setChromiumOpenGlRenderer('swangle');
+Config.setChromiumMultiProcessOnLinux(true);
 
 Config.overrideFfmpegCommand(({ args }) => [...args, '-bf', '0']);

@@ -7,7 +7,7 @@ jobs:
   test_runner:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/kbimahdi/videocreator-runner:v1.0
 
     steps:
       - name: Check Environment and Boot Speed

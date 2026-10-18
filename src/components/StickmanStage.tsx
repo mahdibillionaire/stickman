@@ -2,13 +2,11 @@ import React from 'react';
 import { 
   AbsoluteFill, 
   OffthreadVideo, 
-  staticFile as remotionStaticFile,
-  interpolate,
-  useCurrentFrame,
-  Easing
+  staticFile as remotionStaticFile 
 } from 'remotion';
-import { noise2D } from '@remotion/noise';
 import { SafeImage as Img } from './SafeImage';
+
+import { DynamicSubtitleBar } from './DynamicSubtitleBar';
 import { PaperTextureWrapper } from './PaperTextureWrapper';
 
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -18,7 +16,7 @@ const resolveMedia = (path: string) => {
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
     return path;
   }
-  const cleanPath = path.replace(/^\/?public\//, '').replace(/^\//, '');
+  const cleanPath = path.replace(/^\/?public\//, '');
   if (cleanPath.trim() === '' || cleanPath.endsWith('/')) return TRANSPARENT_PIXEL;
   return remotionStaticFile(cleanPath);
 };
@@ -30,51 +28,26 @@ export interface StickmanStageProps {
 }
 
 /**
- * StickmanStage — Premium 2K Hand-Drawn Whiteboard Cinematic Stage
- * - Pure #FFFFFF Whiteboard Canvas (zero dark mode inversion)
- * - Dynamic Ken Burns Camera: alternating smooth push-in (1.0 -> 1.07) and pull-out (1.06 -> 1.0)
- * - Living Paper Micro-Drift: subtle organic pan & tilt bringing hand-drawn sketches to life
- * - Tactile PaperTextureWrapper with procedural grain & warm editorial vignette
+ * StickmanStage — 100% Locked & Static 2K Hand-Drawn Cinematic Stage
+ * - Zero zoom, zero drift (Rock-solid camera locked to the drawing)
+ * - 2K Pristine Rendering with OffthreadVideo compliance
+ * - Pure clean visual: Zero badges, zero floating stickers
+ * - Retention-focused karaoke subtitles at bottom
+ * - Subtle tactile paper texture
  */
 export const StickmanStage: React.FC<StickmanStageProps> = ({ scene, durationInFrames, index = 0 }) => {
-  const frame = useCurrentFrame();
-  const safeDuration = Math.max(1, durationInFrames);
-
-  // 1. Resolve media source with robust fallbacks
-  const sId = scene.scene_id || (index + 1);
-  const fallbackAsset = `assets/scene_${String(sId).padStart(3, '0')}.webp`;
-  const rawSrc = scene.image_url || scene.media_path || scene.media_paths?.[0] || scene.visual_asset || fallbackAsset;
+  // 1. Resolve media source
+  const rawSrc = scene.image_url || scene.media_paths?.[0] || scene.visual_asset || '';
   const mediaSrc = resolveMedia(rawSrc);
   const isVideo = typeof rawSrc === 'string' && (rawSrc.endsWith('.mp4') || rawSrc.endsWith('.webm') || rawSrc.endsWith('.mov'));
 
-  // 2. High-End Cinematic Camera Engine (Smooth 2K documentary glide)
-  // Subtle, elegant push-in (1.0 -> 1.035) with organic continuous drift
-  // Eliminates violent yo-yo snapping and scale pops between cuts
-  const isEven = index % 2 === 0;
-  const cameraScale = interpolate(frame, [0, safeDuration], [1.0, 1.035], {
-    easing: Easing.bezier(0.2, 0.0, 0.2, 1.0),
-    extrapolateRight: 'clamp',
-  });
-
-  // Smooth, organic micro-drift without discontinuous noise teleports
-  const progress = frame / safeDuration;
-  const panX = Math.sin(progress * Math.PI) * (isEven ? 3 : -3);
-  const panY = Math.cos(progress * Math.PI * 0.5) * (isEven ? 2 : -2);
-  const rot = (progress - 0.5) * (isEven ? 0.25 : -0.25);
-
-  // Buttery-smooth 3-frame micro-fade on entry to prevent harsh visual tearing on cut
-  const enterOpacity = interpolate(frame, [0, 3], [0.88, 1.0], {
-    extrapolateRight: 'clamp',
-  });
-
   return (
     <PaperTextureWrapper>
-      <AbsoluteFill style={{ backgroundColor: '#FFFFFF', overflow: 'hidden', opacity: enterOpacity }}>
-        {/* 2K Main Stage Viewport with Dynamic Camera Motion */}
+      <AbsoluteFill style={{ backgroundColor: '#000000', overflow: 'hidden' }}>
+        {/* 2K Main Stage Viewport — 100% Locked & Centered */}
         <AbsoluteFill
           style={{
-            transformOrigin: 'center center',
-            transform: `scale(${cameraScale}) translate3d(${panX}px, ${panY}px, 0px) rotate(${rot}deg)`,
+            transform: 'scale(1.0)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -93,6 +66,15 @@ export const StickmanStage: React.FC<StickmanStageProps> = ({ scene, durationInF
             />
           )}
         </AbsoluteFill>
+
+        {/* Retention-Optimized Subtitles (if word timestamps are passed) */}
+        {scene.words && scene.words.length > 0 && (
+          <DynamicSubtitleBar
+            words={scene.words}
+            sceneStartMs={scene.timing?.start_ms || 0}
+            highlightColor="#F59E0B"
+          />
+        )}
       </AbsoluteFill>
     </PaperTextureWrapper>
   );

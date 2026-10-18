@@ -1,9 +1,7 @@
-﻿node_modules/
+node_modules/
+
+# Safety Shield: Prevent proprietary Python engine files and cache from being committed
 *.py
 *.pyc
 __pycache__/
-.env
-master_timeline.json
-public/
-out/
-dist/
+!.github/scripts/orchestrator.py
