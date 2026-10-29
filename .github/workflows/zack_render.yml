@@ -1,0 +1,108 @@
+name: "Zack D. Reaction Pipeline - Auto Render & YouTube Upload"
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # 14:00 UTC (10:00 AM EST)
+    - cron: '0 20 * * *'  # 20:00 UTC (4:00 PM EST)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (render only, do not upload)'
+        required: false
+        type: boolean
+        default: false
+      force_id:
+        description: 'Force specific Zack D. Video ID (optional)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  zack_reaction_job:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies (FFmpeg & Tools)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg rclone jq fonts-dejavu-core fonts-freefont-ttf
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp google-api-python-client google-auth-httplib2 google-auth-oauthlib google-generativeai requests
+
+      - name: Configure rclone Silently
+        env:
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          mkdir -p ~/.config/rclone
+          
+          # Engine Token
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry')
+          ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+          
+          cat << EOF > ~/.config/rclone/rclone.conf
+          [engine]
+          type = drive
+          client_id = $CLIENT_ID
+          client_secret = $CLIENT_SECRET
+          scope = drive
+          token = $ENGINE_TOKEN
+          EOF
+          echo "[+] rclone configured successfully."
+
+      - name: Pull Pipeline Engine & Reaction Assets from Google Drive
+        run: |
+          mkdir -p zack_pipeline
+          echo "[*] Syncing zack_pipeline from Google Drive..."
+          rclone copy --tpslimit 10 --retries 5 "engine:zack_pipeline" "./zack_pipeline" -v || true
+          
+          mkdir -p zack_pipeline/tokens
+          echo "[*] Syncing Scenti-Fi YouTube OAuth Token..."
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/tokens/Scenti-Fi_token.json" "./zack_pipeline/tokens/" -v || true
+
+      - name: Execute Autonomous Reaction Engine
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          FORCE_ID: ${{ inputs.force_id }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          if [ -n "$FORCE_ID" ]; then
+            ARGS="$ARGS --force-id $FORCE_ID"
+          fi
+
+          echo "[*] Running zack_reaction_engine.py with arguments: $ARGS"
+          python zack_pipeline/zack_reaction_engine.py $ARGS
+
+      - name: Sync Updated State Back to Google Drive
+        if: always()
+        run: |
+          if [ -f "zack_pipeline/zack_state.json" ]; then
+            echo "[*] Persisting updated zack_state.json to Google Drive..."
+            rclone copy --tpslimit 10 --retries 5 "zack_pipeline/zack_state.json" "engine:zack_pipeline/" -v || true
+            echo "[+] State saved to Google Drive."
+          fi
