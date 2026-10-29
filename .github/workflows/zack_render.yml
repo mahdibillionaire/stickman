@@ -85,12 +85,15 @@ jobs:
           rclone copy --tpslimit 10 --retries 5 "engine:zack_pipeline" "./zack_pipeline" -v || true
           
           mkdir -p zack_pipeline/tokens
-          echo "[*] Syncing Scenti-Fi YouTube OAuth Token..."
+          echo "[*] Syncing Scenti-Fi YouTube OAuth Token & Cookies..."
           rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/tokens/Scenti-Fi_token.json" "./zack_pipeline/tokens/" -v || true
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/youtube_cookies.txt" "./zack_pipeline/" -v 2>/dev/null || true
 
       - name: Execute Autonomous Reaction Engine
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          YOUTUBE_PO_TOKEN: ${{ secrets.YOUTUBE_PO_TOKEN }}
           FORCE_ID: ${{ inputs.force_id }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
