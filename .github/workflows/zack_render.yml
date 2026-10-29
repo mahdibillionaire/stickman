@@ -1,9 +1,6 @@
 name: "Zack D. Reaction Pipeline - Auto Render & YouTube Upload"
 
 on:
-  schedule:
-    - cron: '0 14 * * *'  # 14:00 UTC (10:00 AM EST)
-    - cron: '0 20 * * *'  # 20:00 UTC (4:00 PM EST)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -13,6 +10,16 @@ on:
         default: false
       force_id:
         description: 'Force specific Zack D. Video ID (optional)'
+        required: false
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+      force_id:
         required: false
         type: string
         default: ''
