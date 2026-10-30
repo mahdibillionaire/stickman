@@ -19,10 +19,12 @@ on:
       channel_name:
         description: 'Channel to operate on'
         required: true
-        default: 'Torque-Fi'
+        default: 'Chicken Proof'
         type: choice
         options:
-          - Torque-Fi
+          - 'Chicken Proof'
+          - Midi-Fi
+          - Cycle-Fi
       topic:
         description: 'Topic Name'
         required: false
@@ -52,7 +54,7 @@ jobs:
     if: inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
+      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
     outputs:
       vault_name: ${{ steps.orchestrator.outputs.vault_name }}
       total_frames: ${{ steps.orchestrator.outputs.total_frames }}
@@ -69,8 +71,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -243,23 +245,34 @@ jobs:
           NVIDIA_API_KEY_2: ${{ secrets.NVIDIA_API_KEY_2 }}
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
-          # Export GITHUB_OUTPUT explicitly to xvfb-run just in case it strips it
-          xvfb-run -a --server-args="-screen 0 1920x1080x24" env GITHUB_OUTPUT="$GITHUB_OUTPUT" python -u .github/scripts/orchestrator.py
-            
-            # Failsafe: if Python failed to write to GITHUB_OUTPUT, Bash will do it directly!
-            if [ -f "generated_vault.txt" ]; then
-                VAULT_NAME=$(cat generated_vault.txt)
-                echo "vault_name=$VAULT_NAME" >> $GITHUB_OUTPUT
-                echo "[+] Pre-creating assets directory on Drive to prevent parallel worker collisions..."
-                rclone mkdir "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT_NAME/assets" || true
-            fi
-            
-            if [ -f "timeline.json" ]; then
-                TOTAL_FRAMES=$(jq '([(.meta // .metadata // {}).total_duration_ms // 0, ([.timeline[]? | (.timing.start_ms // 0) + (.timing.duration_ms // 0)] | max // 0)] | max) | if . > 0 then ((. / 1000) * 30 | round) + 60 else 0 end' timeline.json 2>/dev/null || echo "0")
-            else
-                TOTAL_FRAMES="0"
-            fi
-            echo "total_frames=$TOTAL_FRAMES" >> $GITHUB_OUTPUT
+          echo "[*] Launching Autonomous Video Creation Engine (Private Execution)..."
+          # Redirect orchestrator execution to local log to keep public GitHub logs clean & private
+          if xvfb-run -a --server-args="-screen 0 1920x1080x24" env GITHUB_OUTPUT="$GITHUB_OUTPUT" python -u .github/scripts/orchestrator.py > /tmp/orchestrator.log 2>&1; then
+              echo "[+] Video Creation Pipeline completed successfully."
+          else
+              STATUS=$?
+              echo "[!] Pipeline encountered an error (exit code $STATUS)."
+              grep -E "(Error|Exception|Traceback|Failed)" /tmp/orchestrator.log | tail -n 15 || echo "Details logged privately to Google Drive."
+              rclone copyto /tmp/orchestrator.log "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/logs/error_orchestrator_${{ github.run_id }}.log" 2>/dev/null || true
+              exit $STATUS
+          fi
+
+          # Silently sync full execution log to owner's Google Drive for private review
+          rclone copyto /tmp/orchestrator.log "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/logs/run_${{ github.run_id }}.log" 2>/dev/null || true
+
+          # Failsafe: if Python failed to write to GITHUB_OUTPUT, Bash will do it directly!
+          if [ -f "generated_vault.txt" ]; then
+              VAULT_NAME=$(cat generated_vault.txt)
+              echo "vault_name=$VAULT_NAME" >> $GITHUB_OUTPUT
+              rclone mkdir "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT_NAME/assets" 2>/dev/null || true
+          fi
+
+          if [ -f "timeline.json" ]; then
+              TOTAL_FRAMES=$(jq '([(.meta // .metadata // {}).total_duration_ms // 0, ([.timeline[]? | (.timing.start_ms // 0) + (.timing.duration_ms // 0)] | max // 0)] | max) | if . > 0 then ((. / 1000) * 30 | round) + 60 else 0 end' timeline.json 2>/dev/null || echo "0")
+          else
+              TOTAL_FRAMES="0"
+          fi
+          echo "total_frames=$TOTAL_FRAMES" >> $GITHUB_OUTPUT
           
       - name: Sync Refreshed ChatGPT Cookies to Engine Drive
         if: success()
@@ -267,7 +280,7 @@ jobs:
           echo "Syncing refreshed ChatGPT cookies back to engine drive..."
           if [ -f chatgpt_cookies.json ]; then
             rclone copyto --update --tpslimit 5 --retries 3 --contimeout 30s \
-                "chatgpt_cookies.json" "engine:Colab_AutoVideoCreator/chatgpt_cookies.json" -v
+                "chatgpt_cookies.json" "engine:Colab_AutoVideoCreator/chatgpt_cookies.json"
             echo "[+] ChatGPT cookies synced back to engine drive."
           else
             echo "[!] No refreshed cookies found to sync (Playwright may have been skipped)."
@@ -281,7 +294,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_tts != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
+      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
     strategy:
       fail-fast: false
       matrix:
@@ -294,8 +307,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -333,10 +346,11 @@ jobs:
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           CHANNEL="${{ inputs.channel_name }}"
-          # Only download what tts_worker.py actually needs â€” no mp4s, no bulk folders
+          # Only download what tts_worker.py actually needs — no mp4s, no bulk folders
           rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator" . --filter "- /__pycache__/**" --filter "- /.git/**" --filter "- /global_used_assets/**" --filter "- /channels/**" --filter "- /public/channels/**" --filter "- /error_dumps/**" --filter "- /node_modules/**" \
             --include "tts_worker.py" \
             --include "local_voice_engine.py" \
+            --include "smart_gemini_keyring.py" \
             --include "requirements.txt" \
             --include "gemini_cookies.json" \
             --transfers 8
@@ -358,6 +372,7 @@ jobs:
           CHANNEL_NAME: ${{ inputs.channel_name }}
           VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
           pip install -q "setuptools<82.0.0"
           FAILED=1
@@ -377,7 +392,7 @@ jobs:
       - name: Upload WAV Chunks to Drive
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --include "*.wav" -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --include "*.wav"
 
 
   # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -389,7 +404,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_prep != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
+      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -398,8 +413,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -529,15 +544,15 @@ jobs:
         run: |
           if [ -f gemini_cookies.json ] && [ -s gemini_cookies.json ]; then
             echo "[+] Uploading fresh gemini_cookies.json..."
-            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s gemini_cookies.json "engine:Colab_AutoVideoCreator/gemini_cookies.json" -v || true
+            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s gemini_cookies.json "engine:Colab_AutoVideoCreator/gemini_cookies.json" || true
           else
             echo "[!] gemini_cookies.json missing or empty. Nothing to upload."
           fi
           # MotionArray cookies (always safe to overwrite)
-          rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s motionarray_cookies.json "engine:Colab_AutoVideoCreator/motionarray_cookies.json" -v || true
+          rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s motionarray_cookies.json "engine:Colab_AutoVideoCreator/motionarray_cookies.json" || true
           if [ -f google_cookies.json ] && [ -s google_cookies.json ]; then
             echo "[+] Uploading fresh google_cookies.json..."
-            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s google_cookies.json "engine:Colab_AutoVideoCreator/google_cookies.json" -v || true
+            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s google_cookies.json "engine:Colab_AutoVideoCreator/google_cookies.json" || true
           fi
 
       - name: Upload Timeline to Drive
@@ -549,8 +564,8 @@ jobs:
           # Because Google Drive allows duplicate folder names, 8 parallel rclone instances writing to a non-existent path will create 8 duplicate "assets" folders.
           rclone mkdir "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/assets" || true
           
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --transfers 16 -v || true
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/to upload/$VAULT" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/$VAULT" --transfers 16 -v || true
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --transfers 16 || true
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/to upload/$VAULT" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/$VAULT" --transfers 16 || true
 
   # ---------------------------------------------------------
   # PHASE 2b (Parallel): overlay_hunter_job
@@ -561,7 +576,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
+      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -570,8 +585,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -617,14 +632,18 @@ jobs:
           NVIDIA_API_KEY_2: ${{ secrets.NVIDIA_API_KEY_2 }}
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
-          xvfb-run -a python -u overlay_hunter.py
+          if [ -f overlay_hunter.py ]; then
+            xvfb-run -a python -u overlay_hunter.py || true
+          else
+            echo "[!] overlay_hunter.py not found on engine drive. Bypassing."
+          fi
 
       - name: Upload Candidates Map to Drive
         if: always()
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           if [ -f "public/channels/${{ inputs.channel_name }}/$VAULT/google_image_candidates.json" ]; then
-            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --include "google_image_candidates.json" -v || true
+            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" --include "google_image_candidates.json" || true
           fi
 
       - name: Save Fresh Google Cookies to Drive
@@ -632,7 +651,7 @@ jobs:
         run: |
           if [ -f google_cookies.json ] && [ -s google_cookies.json ]; then
             echo "[+] Uploading fresh google_cookies.json..."
-            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s google_cookies.json "engine:Colab_AutoVideoCreator/google_cookies.json" -v || true
+            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s google_cookies.json "engine:Colab_AutoVideoCreator/google_cookies.json" || true
           fi
 
   download_matrix:
@@ -640,12 +659,12 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
+      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
       options: -v /:/host
     strategy:
       fail-fast: false
       matrix:
-        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        worker: [0, 1, 2, 3, 4, 5]
     steps:
       - name: Free Runner Disk Space (Host Mount)
         run: |
@@ -662,8 +681,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -721,8 +740,8 @@ jobs:
       - name: Run Download Worker
         env:
           DOWNLOAD_WORKER_ID: ${{ matrix.worker }}
-          DOWNLOAD_TOTAL_WORKERS: "10"
-          YOUTUBE_TOTAL_WORKERS: "10"
+          DOWNLOAD_TOTAL_WORKERS: "6"
+          YOUTUBE_TOTAL_WORKERS: "13"
           CHANNEL_NAME: ${{ inputs.channel_name }}
           VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -744,8 +763,8 @@ jobs:
       - name: Run Overlay Worker
         env:
           DOWNLOAD_WORKER_ID: ${{ matrix.worker }}
-          DOWNLOAD_TOTAL_WORKERS: "10"
-          YOUTUBE_TOTAL_WORKERS: "10"
+          DOWNLOAD_TOTAL_WORKERS: "6"
+          YOUTUBE_TOTAL_WORKERS: "13"
           CHANNEL_NAME: ${{ inputs.channel_name }}
           VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
           GITHUB_RUN_ID: ${{ github.run_id }}
@@ -757,12 +776,17 @@ jobs:
           echo "[+] Fast-Track Sync Removed. Booting Overlay Worker immediately..."
           echo "Fetching google_image_candidates.json from Drive..."
           rm -f "public/channels/${{ inputs.channel_name }}/$VAULT/google_image_candidates.json"
-          rclone copy --tpslimit 10 --retries 10 "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" "public/channels/${{ inputs.channel_name }}/$VAULT" --include "google_image_candidates.json" -v || true
-          echo "[*] Pulling qwen2.5vl for vision processing..."
-          for i in {1..5}; do ollama pull qwen2.5vl && break || sleep 5; done
-          for r in {1..3}; do xvfb-run -a python -u overlay_worker.py && break || { echo "Crash (Attempt $r), retrying..."; sleep 5; }; done || true
-          echo "[*] Removing qwen2.5vl to free SSD space..."
-          ollama rm qwen2.5vl || true
+          rclone copy --tpslimit 10 --retries 10 "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" "public/channels/${{ inputs.channel_name }}/$VAULT" --include "google_image_candidates.json" || true
+          if [ -f overlay_worker.py ]; then
+            echo "[*] Pulling qwen2.5vl for vision processing..."
+            for i in {1..5}; do ollama pull qwen2.5vl && break || sleep 5; done
+            for r in {1..3}; do xvfb-run -a python -u overlay_worker.py && break || { echo "Crash (Attempt $r), retrying..."; sleep 5; }; done || true
+            echo "[*] Removing qwen2.5vl to free SSD space..."
+            ollama rm qwen2.5vl || true
+          else
+            echo "[!] overlay_worker.py not found. Creating empty partial to prevent merge stall."
+            python3 -c "import json; json.dump({'worker_id': ${{ matrix.worker }}, 'scenes': {}}, open('partial_overlay_${{ matrix.worker }}.json', 'w'))" || true
+          fi
 
       - name: Batch Upload Assets and Partial Timeline to Drive
         if: always()
@@ -774,45 +798,79 @@ jobs:
           echo "Batch uploading downloaded assets..."
           rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT/assets" \
             "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/assets" \
-            --transfers 16 -v || true
+            --transfers 16 || true
             
           if [ -f "$PARTIAL_VID" ]; then
             rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "$PARTIAL_VID" \
               "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" \
-              --transfers 1 -v || true
+              --transfers 1 || true
             echo "[+] Uploaded $PARTIAL_VID to Drive."
+          fi
+
+          if [ -f "public/channels/${{ inputs.channel_name }}/$VAULT/$PARTIAL_VID" ]; then
+            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT/$PARTIAL_VID" \
+              "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" \
+              --transfers 1 || true
+            echo "[+] Uploaded public/.../$PARTIAL_VID to Drive."
           fi
           
           if [ -f "$PARTIAL_OVL" ]; then
             rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 5 --contimeout 60s "$PARTIAL_OVL" \
               "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" \
-              --transfers 1 -v || true
+              --transfers 1 || true
+            echo "[+] Uploaded $PARTIAL_OVL to Drive."
+          fi
+
+          if [ -f "public/channels/${{ inputs.channel_name }}/$VAULT/$PARTIAL_OVL" ]; then
+            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 5 --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT/$PARTIAL_OVL" \
+              "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" \
+              --transfers 1 || true
+            echo "[+] Uploaded public/.../$PARTIAL_OVL to Drive."
           fi
 
   youtube_download_matrix:
     needs: [creation_job, brain_prep_job, tts_matrix]
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
-      options: -v /:/host
     strategy:
       fail-fast: false
       matrix:
-        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        worker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
-      - name: Free Runner Disk Space (Host Mount)
+      - name: Free Runner Disk Space & Expand RAM (Swap)
         run: |
-          if [ -d "/host/usr/share/dotnet" ]; then
-            echo "=== Freeing Host SSD via /host mount ==="
-            rm -rf /host/usr/share/dotnet /host/usr/local/lib/android /host/opt/ghc /host/usr/local/share/boost 2>/dev/null || true
-          fi
+          echo "=== Freeing Host SSD Bloat ==="
           df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          sudo docker system prune -af 2>/dev/null || true
+          echo "=== Creating 16GB NVMe Swapfile ==="
+          sudo fallocate -l 16G /swapfile_extra 2>/dev/null || sudo dd if=/dev/zero of=/swapfile_extra bs=1M count=16384
+          sudo chmod 600 /swapfile_extra
+          sudo mkswap /swapfile_extra
+          sudo swapon /swapfile_extra
+          echo "=== Storage & Memory Status ==="
+          df -h /
+          free -h
 
       - uses: actions/checkout@v4
 
       - name: Configure Git Safe Directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install System Dependencies & Tools
+        run: |
+          sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+          sudo sed -i 's/azure.archive.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list 2>/dev/null || true
+          for _apt in 1 2 3; do sudo apt-get update && sudo apt-get install -y rclone jq ffmpeg xvfb && break || sleep 10; done
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --no-cache-dir yt-dlp google-genai requests pillow numpy opencv-python-headless filelock
 
       - name: Setup Node.js (For yt-dlp JS Runtime)
         uses: actions/setup-node@v4
@@ -821,8 +879,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -855,14 +913,15 @@ jobs:
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator" . --include "ai_upscaler.py" --include "youtube_worker.py" --include "yt_downloader.py" --include "smart_gemini_keyring.py" --include "requirements.txt" --include "youtube_cookies.txt" --include "po_token.txt" --include "motionarray_downloader.py" --include "distributed_lock.py" --include "utils.py" --include "motionarray_cookies.json"
           
-          mkdir -p "public/channels/${{ inputs.channel_name }}/$VAULT"
+          mkdir -p "public/channels/${{ inputs.channel_name }}/$VAULT/assets"
           rclone copy --tpslimit 10 --retries 5 "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" "public/channels/${{ inputs.channel_name }}/$VAULT" --include "master_timeline.json" --include "partial_*.json" || true
+          rclone copy --tpslimit 10 --retries 5 "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/$VAULT" "public/channels/${{ inputs.channel_name }}/$VAULT" --include "master_timeline.json" --include "partial_*.json" || true
 
 
       - name: Run YouTube Download Worker
         env:
           YOUTUBE_WORKER_ID: ${{ matrix.worker }}
-          YOUTUBE_TOTAL_WORKERS: 10
+          YOUTUBE_TOTAL_WORKERS: 13
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
           YOUTUBE_PO_TOKEN: ${{ secrets.YOUTUBE_PO_TOKEN }}
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
@@ -877,14 +936,27 @@ jobs:
         if: always()
         run: |
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
+          PARTIAL_YT="partial_youtube_${{ matrix.worker }}.json"
           echo "Batch uploading downloaded YouTube assets..."
           rclone copy --tpslimit 10 --retries 5 "public/channels/${{ inputs.channel_name }}/$VAULT/assets" \
-            "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/assets" -v || true
+            "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/assets" || true
             
-          if [ -f "partial_youtube_${{ matrix.worker }}.json" ]; then
-            rclone copy --tpslimit 10 --retries 5 "partial_youtube_${{ matrix.worker }}.json" \
-              "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" -v || true
-            echo "[+] Uploaded partial_youtube_${{ matrix.worker }}.json to Drive."
+          if [ -f "$PARTIAL_YT" ]; then
+            rclone copy --tpslimit 10 --retries 5 "$PARTIAL_YT" \
+              "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" || true
+            echo "[+] Uploaded $PARTIAL_YT to Drive."
+          fi
+
+          if [ -f "public/channels/${{ inputs.channel_name }}/$VAULT/$PARTIAL_YT" ]; then
+            rclone copy --tpslimit 10 --retries 5 "public/channels/${{ inputs.channel_name }}/$VAULT/$PARTIAL_YT" \
+              "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" || true
+            echo "[+] Uploaded public/.../$PARTIAL_YT to Drive."
+          fi
+
+          if [ -d "channels/${{ inputs.channel_name }}/to upload/$VAULT" ]; then
+            rclone copy --tpslimit 10 --retries 5 "channels/${{ inputs.channel_name }}/to upload/$VAULT" \
+              "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/$VAULT" || true
+            echo "[+] Uploaded channels/.../$VAULT to Drive."
           fi
 
   # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -895,7 +967,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
+      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -904,8 +976,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -972,8 +1044,8 @@ jobs:
         env:
           CHANNEL_NAME: ${{ inputs.channel_name }}
           VAULT_NAME: ${{ needs.creation_job.outputs.vault_name }}
-          DOWNLOAD_TOTAL_WORKERS: "10"
-          YOUTUBE_TOTAL_WORKERS: "10"
+          DOWNLOAD_TOTAL_WORKERS: "6"
+          YOUTUBE_TOTAL_WORKERS: "13"
           GITHUB_RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
@@ -1060,15 +1132,15 @@ jobs:
         run: |
           if [ -f gemini_cookies.json ] && [ -s gemini_cookies.json ]; then
             echo "[+] Uploading fresh gemini_cookies.json..."
-            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s gemini_cookies.json "engine:Colab_AutoVideoCreator/gemini_cookies.json" -v || true
+            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s gemini_cookies.json "engine:Colab_AutoVideoCreator/gemini_cookies.json" || true
           else
             echo "[!] gemini_cookies.json missing or empty. Nothing to upload."
           fi
           # MotionArray cookies (always safe to overwrite)
-          rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s motionarray_cookies.json "engine:Colab_AutoVideoCreator/motionarray_cookies.json" -v || true
+          rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s motionarray_cookies.json "engine:Colab_AutoVideoCreator/motionarray_cookies.json" || true
           if [ -f google_cookies.json ] && [ -s google_cookies.json ]; then
             echo "[+] Uploading fresh google_cookies.json..."
-            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s google_cookies.json "engine:Colab_AutoVideoCreator/google_cookies.json" -v || true
+            rclone copyto --update --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s google_cookies.json "engine:Colab_AutoVideoCreator/google_cookies.json" || true
           fi
 
       - name: Upload Final Assets to Drive
@@ -1077,10 +1149,10 @@ jobs:
           VAULT="${{ needs.creation_job.outputs.vault_name }}"
           rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "public/channels/${{ inputs.channel_name }}/$VAULT" \
             "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT" \
-            --transfers 16 -v || true
+            --transfers 16 || true
           rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/to upload/$VAULT" \
             "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/$VAULT" \
-            --transfers 16 -v || true
+            --transfers 16 || true
           # Pre-create chunks folder atomically before parallel render_matrix launches
           rclone mkdir "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/$VAULT/chunks" || true
 
@@ -1122,8 +1194,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -1200,8 +1272,56 @@ jobs:
             rclone mkdir "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/${{ env.vault_name }}" || true
             rclone mkdir "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/${{ env.vault_name }}/chunks" || true
             rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/public/channels/${{ inputs.channel_name }}/${{ env.vault_name }}" "public/channels/${{ inputs.channel_name }}/${{ env.vault_name }}" --transfers 16 || true
-          # Remotion's src/ does: import '../master_timeline.json' â€” must be at repo root
+          # Remotion's src/ does: import '../master_timeline.json' — must be at repo root
           cp "public/channels/${{ inputs.channel_name }}/${{ env.vault_name }}/master_timeline.json" master_timeline.json
+
+      - name: Auto-Heal Missing Assets Pre-Flight
+        run: |
+          python3 -c "
+          import json, os, shutil
+
+          channel = '${{ inputs.channel_name }}'
+          vault = '${{ env.vault_name }}'
+          vault_dir = f'public/channels/{channel}/{vault}'
+          assets_dir = os.path.join(vault_dir, 'assets')
+          os.makedirs(assets_dir, exist_ok=True)
+          tl_path = 'master_timeline.json'
+
+          if os.path.exists(tl_path):
+              with open(tl_path, 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+              timeline = data.get('timeline', [])
+              valid_clips = [
+                  os.path.join(assets_dir, f) for f in os.listdir(assets_dir)
+                  if f.lower().endswith(('.mp4', '.mov', '.webm')) and os.path.getsize(os.path.join(assets_dir, f)) > 1024
+              ]
+              if not valid_clips:
+                  print('[AUTO-HEAL] No valid video clips found in assets to use as donor pool.')
+              else:
+                  healed = 0
+                  for s in timeline:
+                      paths = []
+                      if s.get('media_path'): paths.append(s['media_path'])
+                      if s.get('media_paths'): paths.extend(s['media_paths'])
+                      if isinstance(s.get('monolith_payload'), dict) and s['monolith_payload'].get('bgVideoSrc'):
+                          paths.append(s['monolith_payload']['bgVideoSrc'])
+                      if isinstance(s.get('floating_cards_payload'), dict) and s['floating_cards_payload'].get('bgVideoSrc'):
+                          paths.append(s['floating_cards_payload']['bgVideoSrc'])
+                      for p in paths:
+                          if not p: continue
+                          fname = os.path.basename(p.split('?')[0].split('#')[0])
+                          if not fname.lower().endswith(('.mp4', '.mov', '.webm')): continue
+                          target_path = os.path.join(assets_dir, fname)
+                          if not os.path.exists(target_path) or os.path.getsize(target_path) <= 1024:
+                              donor = valid_clips[healed % len(valid_clips)]
+                              shutil.copyfile(donor, target_path)
+                              print(f'[AUTO-HEAL] Rescued missing asset: {fname} <- {os.path.basename(donor)}')
+                              healed += 1
+                  if healed > 0:
+                      print(f'[AUTO-HEAL] Successfully rescued {healed} missing media files.')
+                  else:
+                      print('[AUTO-HEAL] All media assets verified present and valid.')
+          "
 
       - name: Install Dependencies
         run: for _retry in 1 2 3 4 5; do npm ci && break || { echo "Command failed, retrying..."; sleep 15; }; done
@@ -1308,8 +1428,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -1412,7 +1532,7 @@ jobs:
       - name: Sync Final Video to Google Drive
         run: |
           echo "Saving final video to Google Drive 'to upload' folder..."
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/to upload/${{ env.vault_name }}/final_video.mp4" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/${{ env.vault_name }}" -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/to upload/${{ env.vault_name }}/final_video.mp4" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload/${{ env.vault_name }}"
           
       - name: Upload Video to YouTube API
         env:
@@ -1420,20 +1540,20 @@ jobs:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
           echo "Syncing all pending upload folders from Google Drive..."
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload" "channels/${{ inputs.channel_name }}/to upload" -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload" "channels/${{ inputs.channel_name }}/to upload"
           
           echo "Syncing channel shorts registry..."
           rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/shorts_registry.json" "channels/${{ inputs.channel_name }}/" 2>/dev/null || true
 
           echo "Downloading private uploader script and tokens from Google Drive..."
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/youtube_uploader.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/shorts_pipeline.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/distribution_engine.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/pinterest_bot.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/client_secrets.json" "." -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/youtube_uploader.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/shorts_pipeline.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/distribution_engine.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/pinterest_bot.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/client_secrets.json" "."
           mkdir -p tokens
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/tokens" "tokens" -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/tokens" "tokens"
           
           echo "Installing YouTube Uploader dependencies..."
           for _retry in 1 2 3 4 5; do python -m pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib tweepy requests playwright pillow && break || { echo "Command failed, retrying..."; sleep 15; }; done
@@ -1442,12 +1562,21 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
           for _retry in 1 2 3 4 5; do python -m playwright install chromium && break || { echo "Playwright install failed, retrying..."; sleep 10; }; done
           
-          echo "Running YouTube Uploader..."
-          python youtube_uploader.py
+          echo "[*] Launching YouTube Uploader (Private Execution)..."
+          if python youtube_uploader.py > /tmp/uploader.log 2>&1; then
+              echo "[+] Video published successfully to YouTube."
+          else
+              STATUS=$?
+              echo "[!] YouTube Uploader encountered an error (exit code $STATUS)."
+              grep -E "(Error|Exception|Traceback|Failed)" /tmp/uploader.log | tail -n 15 || echo "Details logged privately to Google Drive."
+              rclone copyto /tmp/uploader.log "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/logs/error_uploader_${{ github.run_id }}.log" 2>/dev/null || true
+              exit $STATUS
+          fi
+          rclone copyto /tmp/uploader.log "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/logs/uploader_${{ github.run_id }}.log" 2>/dev/null || true
 
           if [ -f "channels/${{ inputs.channel_name }}/shorts_registry.json" ]; then
             echo "Persisting updated shorts registry to Google Drive..."
-            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/shorts_registry.json" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/" -v || true
+            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/shorts_registry.json" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/" || true
           fi
 
   upload_only:
@@ -1469,8 +1598,8 @@ jobs:
 
       - name: Configure rclone Silently
         env:
-          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -1508,20 +1637,20 @@ jobs:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
           echo "Syncing all pending upload folders from Google Drive..."
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload" "channels/${{ inputs.channel_name }}/to upload" -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/to upload" "channels/${{ inputs.channel_name }}/to upload"
           
           echo "Syncing channel shorts registry..."
           rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/shorts_registry.json" "channels/${{ inputs.channel_name }}/" 2>/dev/null || true
 
           echo "Downloading private uploader script and tokens from Google Drive..."
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/youtube_uploader.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/shorts_pipeline.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/distribution_engine.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/pinterest_bot.py" "." -v
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/client_secrets.json" "." -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/youtube_uploader.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/shorts_pipeline.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/distribution_engine.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/pinterest_bot.py" "."
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/client_secrets.json" "."
           mkdir -p tokens
-          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/tokens" "tokens" -v
+          rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "engine:Colab_AutoVideoCreator/tokens" "tokens"
           
           echo "Installing YouTube Uploader dependencies..."
           for _retry in 1 2 3 4 5; do python -m pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib tweepy requests playwright pillow && break || { echo "Command failed, retrying..."; sleep 15; }; done
@@ -1530,14 +1659,22 @@ jobs:
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list || true
           for _retry in 1 2 3 4 5; do python -m playwright install chromium && break || { echo "Playwright install failed, retrying..."; sleep 10; }; done
           
-          echo "Running YouTube Uploader..."
-          python youtube_uploader.py
+          echo "[*] Launching YouTube Uploader (Private Execution)..."
+          if python youtube_uploader.py > /tmp/uploader.log 2>&1; then
+              echo "[+] Video published successfully to YouTube."
+          else
+              STATUS=$?
+              echo "[!] YouTube Uploader encountered an error (exit code $STATUS)."
+              grep -E "(Error|Exception|Traceback|Failed)" /tmp/uploader.log | tail -n 15 || echo "Details logged privately to Google Drive."
+              rclone copyto /tmp/uploader.log "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/logs/error_uploader_${{ github.run_id }}.log" 2>/dev/null || true
+              exit $STATUS
+          fi
+          rclone copyto /tmp/uploader.log "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/logs/uploader_${{ github.run_id }}.log" 2>/dev/null || true
 
           if [ -f "channels/${{ inputs.channel_name }}/shorts_registry.json" ]; then
             echo "Persisting updated shorts registry to Google Drive..."
-            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/shorts_registry.json" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/" -v || true
+            rclone copy --tpslimit 10 --tpslimit-burst 10 --retries 15 --retries-sleep 30s --contimeout 60s "channels/${{ inputs.channel_name }}/shorts_registry.json" "data:Colab_AutoVideoCreator/channels/${{ inputs.channel_name }}/" || true
           fi
-
 
 
 
