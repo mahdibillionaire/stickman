@@ -15,16 +15,13 @@ on:
           - RESUME
           - RENDER_ONLY
           - STITCH_ONLY
-          - UPLOAD_ONLY
-      channel_name:
+          - UPLOAD_ONLY      channel_name:
         description: 'Channel to operate on'
         required: true
-        default: 'Chicken Proof'
+        default: 'Torque-Fi'
         type: choice
         options:
-          - 'Chicken Proof'
-          - Midi-Fi
-          - Cycle-Fi
+          - Torque-Fi
       topic:
         description: 'Topic Name'
         required: false
@@ -54,7 +51,7 @@ jobs:
     if: inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     outputs:
       vault_name: ${{ steps.orchestrator.outputs.vault_name }}
       total_frames: ${{ steps.orchestrator.outputs.total_frames }}
@@ -72,7 +69,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -294,7 +291,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_tts != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     strategy:
       fail-fast: false
       matrix:
@@ -308,7 +305,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -404,7 +401,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_prep != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -414,7 +411,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -576,7 +573,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -586,7 +583,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -659,7 +656,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
       options: -v /:/host
     strategy:
       fail-fast: false
@@ -682,7 +679,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -880,7 +877,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -967,7 +964,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - uses: actions/checkout@v4
 
@@ -977,7 +974,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -1195,7 +1192,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -1429,7 +1426,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
@@ -1599,7 +1596,7 @@ jobs:
       - name: Configure rclone Silently
         env:
           ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
-          DATA_TOKEN_RAW: ${{ inputs.channel_name == 'Midi-Fi' && secrets.G_DRIVE_TOKEN || secrets.G_DRIVE_TOKEN }}
+          DATA_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN }}
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         run: |
