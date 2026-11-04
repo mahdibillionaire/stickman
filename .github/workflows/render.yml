@@ -19,14 +19,10 @@ on:
       channel_name:
         description: 'Channel to operate on'
         required: true
-        default: 'Chicken Proof'
+        default: 'Torque-Fi'
         type: choice
         options:
-          - 'Chicken Proof'
-          - ClassZ
-          - Midi-Fi
-          - ARTIFY
-          - Cycle-Fi
+          - Torque-Fi
       topic:
         description: 'Topic Name'
         required: false
@@ -56,7 +52,7 @@ jobs:
     if: inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     outputs:
       vault_name: ${{ steps.orchestrator.outputs.vault_name }}
       total_frames: ${{ steps.orchestrator.outputs.total_frames }}
@@ -437,7 +433,7 @@ jobs:
             -e VAULT_NAME="$ACTUAL_VAULT" \
             -e HF_TOKEN="${{ secrets.HF_TOKEN }}" \
             -e GEMINI_API_KEYS="${{ secrets.GEMINI_API_KEYS }}" \
-            ghcr.io/mahdikaibi/videocreator-runner:v1.0 \
+            ghcr.io/mahdibillionaire/videocreator-runner:v1.0 \
             bash -c "
               pip install -q 'setuptools<82.0.0'
               FAILED=1
@@ -476,7 +472,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_prep != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - name: Free Runner Disk Space (Pre-Pull)
         run: |
@@ -672,7 +668,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY' && needs.creation_job.outputs.skip_downloads != 'true'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - name: Free Runner Disk Space (Pre-Pull)
         run: |
@@ -880,7 +876,7 @@ jobs:
             -e NVIDIA_API_KEY="${{ secrets.NVIDIA_API_KEY }}" \
             -e NVIDIA_API_KEY_2="${{ secrets.NVIDIA_API_KEY_2 }}" \
             -e GEMINI_API_KEYS="${{ secrets.GEMINI_API_KEYS }}" \
-            ghcr.io/mahdikaibi/videocreator-runner:v1.0 \
+            ghcr.io/mahdibillionaire/videocreator-runner:v1.0 \
             bash -c "
               echo '[*] Launching pre-baked Ollama server...'
               OLLAMA_HOST='127.0.0.1' OLLAMA_ORIGINS='*' ollama serve > ollama.log 2>&1 &
@@ -1105,7 +1101,7 @@ jobs:
     if: always() && !cancelled() && !failure() && inputs.action_type != 'RENDER_ONLY' && inputs.action_type != 'STITCH_ONLY' && inputs.action_type != 'UPLOAD_ONLY'
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/mahdikaibi/videocreator-runner:v1.0
+      image: ghcr.io/mahdibillionaire/videocreator-runner:v1.0
     steps:
       - name: Free Runner Disk Space (Pre-Pull)
         run: |
