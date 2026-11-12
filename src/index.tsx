@@ -1,4 +1,4 @@
-import { AbsoluteFill, Sequence, Audio, useVideoConfig, useCurrentFrame, staticFile as remotionStaticFile, registerRoot, Composition, interpolate, spring, Easing, random as seededRandom, Freeze } from 'remotion';
+import { AbsoluteFill, Sequence, Audio, OffthreadVideo, useVideoConfig, useCurrentFrame, staticFile as remotionStaticFile, registerRoot, Composition, interpolate, spring, Easing, random as seededRandom, Freeze } from 'remotion';
 import { SafeImage as Img } from './components/SafeImage';
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 const staticFile = (path: string) => {
@@ -46,6 +46,8 @@ import { GlitchDataTearTransition } from './components/transition9';
 import { CinematicMatchCutTransition } from './components/transition10';
 import { CameraWallTransition } from './components/transition11';
 import { ShortsGlassOutro } from './components/ShortsGlassOutro';
+import { AnimatedExplanation } from './components/AnimatedExplanation';
+import { ShowcaseRegistry } from './Showcases';
 
 
 export const useCamera = () => ({ xPan: 0, yPan: 0, zScale: 1.0 });
@@ -246,6 +248,8 @@ const SceneContent = ({ scene, index }: any) => {
     const { fps } = useVideoConfig();
     const isLiquidGrid = ((scene.scene_type === 'dynamic_grid' || scene.visual?.scene_type === 'dynamic_grid') && (scene.visual?.assets || scene.assets || []).some((a: any) => (a.local_path || a.downloaded_path) && a.layer !== 'background' && a.type !== 'video'));
     const isAnimatedNumber = scene.graphics && ['animatednumber', 'animated_number'].includes(String(scene.graphics.graphics_type || '').toLowerCase());
+    const isYouTube = scene.scene_type === 'youtube' || scene.visual?.scene_type === 'youtube' || (scene.media_paths?.[0] && String(scene.media_paths[0]).toLowerCase().includes('youtube')) || (scene.media_path && String(scene.media_path).toLowerCase().includes('youtube')) || Boolean(scene.visual?.youtube_query) || Boolean(scene.youtube_query);
+    const isExplanation = scene.scene_type === 'animated_explanation' || scene.visual?.scene_type === 'animated_explanation' || Boolean(scene.explanation_payload) || Boolean(scene.visual?.explanation_payload);
 
     return (
         <AbsoluteFill>
@@ -270,6 +274,20 @@ const SceneContent = ({ scene, index }: any) => {
                 <CinematicChapterReveal chapterNumber={scene.chapter_payload?.chapterNumber || 1} subtitle={scene.chapter_payload?.subtitle || ""} bgImgUrl={scene.visual?.assets?.find((a:any) => a.role === 'bg_chapter')?.local_path || ""} leftAssetUrl={scene.visual?.assets?.find((a:any) => a.role === 'left_chapter')?.local_path || ""} rightAssetUrl={scene.visual?.assets?.find((a:any) => a.role === 'right_chapter')?.local_path || ""} sfxUrl={scene.chapter_payload?.sfxUrl || scene.visual?.sfxUrl || scene.sfxUrl} accentColor={scene.chapter_payload?.accentColor || scene.visual?.accentColor || scene.accentColor} />
             ) : (scene.scene_type === 'magnates_2.5d' || scene.visual?.scene_type === 'magnates_2.5d' || scene.scene_type === 'two_part_whip' || scene.visual?.scene_type === 'two_part_whip') ? (
                 <MagnatesStage payload={scene.visual || {}} durationInFrames={Math.max(1, scene.visualDurFrames || 1)} />
+            ) : isExplanation ? (
+                (scene.explanation_video_ready || String(scene.media_paths?.[0] || scene.media_path || '').includes('explain_')) ? (
+                    <OffthreadVideo
+                        muted
+                        src={staticFile(scene.media_paths?.[0] || scene.media_path || '')}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                ) : (
+                    <AnimatedExplanation 
+                        payload={scene.explanation_payload || scene.visual?.explanation_payload || {}} 
+                        sceneStartMs={scene.timing?.start_ms || 0} 
+                        durationInFrames={scene.visualDurFrames || Math.max(1, scene.audioDurFrames - scene.overlapFrames)} 
+                    />
+                )
             ) : isLiquidGrid ? (
                 <DynamicLiquidGrid 
                     bgVideoUrl={scene.media_paths?.[0] || scene.media_path || ''} 
@@ -302,14 +320,14 @@ const SceneContent = ({ scene, index }: any) => {
             )}
             <EffectsDirector variants={scene.editorialVariants} events={scene.events} />
             <Sequence from={0} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)}>
-                {scene.graphics && scene.graphics.graphics_type && scene.graphics.graphics_type !== 'none' && !(isLiquidGrid && isAnimatedNumber) ? <MotionGraphicsRouter graphics={{...scene.graphics, trigger_frame: scene.graphics.trigger_start_ms ? Math.round(((scene.graphics.trigger_start_ms - scene.timing.start_ms) / 1000) * fps) : scene.graphics.trigger_frame}} sceneIndex={index} variants={scene.editorialVariants} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)} /> : null}
+                {scene.graphics && scene.graphics.graphics_type && scene.graphics.graphics_type !== 'none' && !isYouTube && !isExplanation && !(isLiquidGrid && isAnimatedNumber) ? <MotionGraphicsRouter graphics={{...scene.graphics, trigger_frame: scene.graphics.trigger_start_ms ? Math.round(((scene.graphics.trigger_start_ms - scene.timing.start_ms) / 1000) * fps) : scene.graphics.trigger_frame}} sceneIndex={index} variants={scene.editorialVariants} durationInFrames={Math.max(1, scene.audioDurFrames - scene.overlapFrames)} /> : null}
             </Sequence>
-            {scene.overlay_image && (
+            {scene.overlay_image && !isYouTube && !isExplanation && (
                 <Sequence from={Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps)} durationInFrames={Math.max(1, scene.visualDurFrames - Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps))}>
                     <CinematicOverlay src={scene.overlay_image} durationInFrames={Math.max(1, scene.visualDurFrames - Math.floor((Math.max(0, (scene.overlay_start_ms || scene.timing.start_ms) - scene.timing.start_ms) / 1000) * fps))} />
                 </Sequence>
             )}
-            {scene.words && scene.words.length > 0 && !isAnimatedNumber && scene.editorialVariants?.captionEnabled !== false && scene.scene_type !== 'floating_cards' && scene.visual?.scene_type !== 'floating_cards' && (scene.scene_type !== 'monolith' || !scene.monolith_payload?.assetSrc) && scene.scene_type !== 'magnates_2.5d' && scene.scene_type !== 'two_part_whip' && (!scene.floating_cards_payload || Object.keys(scene.floating_cards_payload).length === 0) && (!scene.visual?.floating_cards_payload || Object.keys(scene.visual?.floating_cards_payload).length === 0) && (!scene.monolith_payload?.assetSrc) && (scene.caption_preset || scene.visual?.caption_preset) !== 'none' && (
+            {scene.words && scene.words.length > 0 && !isAnimatedNumber && !isExplanation && scene.editorialVariants?.captionEnabled !== false && scene.scene_type !== 'floating_cards' && scene.visual?.scene_type !== 'floating_cards' && (scene.scene_type !== 'monolith' || !scene.monolith_payload?.assetSrc) && scene.scene_type !== 'magnates_2.5d' && scene.scene_type !== 'two_part_whip' && (!scene.floating_cards_payload || Object.keys(scene.floating_cards_payload).length === 0) && (!scene.visual?.floating_cards_payload || Object.keys(scene.visual?.floating_cards_payload).length === 0) && (!scene.monolith_payload?.assetSrc) && (scene.caption_preset || scene.visual?.caption_preset) !== 'none' && (
                 <CaptionDirector scene={scene} />
             )}
         </AbsoluteFill>
@@ -503,6 +521,7 @@ const RemotionRoot = () => {
           subtext: '(First link in description 👇)',
         }}
       />
+      <ShowcaseRegistry />
     </>
   );
 };
