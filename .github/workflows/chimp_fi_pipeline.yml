@@ -1,23 +1,7 @@
-name: "Chimp-Fi Reaction Pipeline - US IP Render & YouTube Upload"
+name: "Chimp-Fi Reaction Pipeline - 1-Click Full Run (US IP)"
 
 on:
   workflow_dispatch:
-    inputs:
-      upload_only:
-        description: 'Upload Only (only upload pending videos in Processed Videos/)'
-        required: false
-        type: boolean
-        default: false
-      render_only:
-        description: 'Render Only (render Videos to use/ into Processed Videos/ without uploading)'
-        required: false
-        type: boolean
-        default: false
-      dry_run:
-        description: 'Dry run (test without uploading)'
-        required: false
-        type: boolean
-        default: false
   workflow_call:
 
 permissions:
@@ -27,7 +11,7 @@ permissions:
 jobs:
   chimp_fi_us_ip_job:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     steps:
       - name: Checkout Repository
@@ -84,26 +68,12 @@ jobs:
           rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "./chimp_fi_pipeline/" -v 2>/dev/null || true
           rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/.env" "./chimp_fi_pipeline/" -v 2>/dev/null || true
 
-      - name: Execute Chimp-Fi Pipeline from US IP (Checks Processed Videos/ First)
+      - name: Execute Chimp-Fi Full A-Z Pipeline from US IP
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
-          UPLOAD_ONLY: ${{ inputs.upload_only }}
-          RENDER_ONLY: ${{ inputs.render_only }}
-          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          ARGS=""
-          if [ "$UPLOAD_ONLY" = "true" ]; then
-            ARGS="$ARGS --upload-only"
-          fi
-          if [ "$RENDER_ONLY" = "true" ]; then
-            ARGS="$ARGS --render-only"
-          fi
-          if [ "$DRY_RUN" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-
-          echo "[*] Running chimp_fi_engine.py from GitHub US IP with arguments: $ARGS"
-          python -u chimp_fi_pipeline/chimp_fi_engine.py $ARGS
+          echo "[*] Running Full Chimp-Fi A-Z Pipeline from GitHub US IP..."
+          python -u chimp_fi_pipeline/chimp_fi_engine.py
 
       - name: Sync Uploaded Videos, Processed Queue & Schedules Back to Google Drive
         if: always()
