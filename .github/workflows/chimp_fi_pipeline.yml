@@ -1,0 +1,125 @@
+name: "Chimp-Fi Reaction Pipeline - US IP Render & YouTube Upload"
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_only:
+        description: 'Upload Only (only upload pending videos in Processed Videos/)'
+        required: false
+        type: boolean
+        default: false
+      render_only:
+        description: 'Render Only (render Videos to use/ into Processed Videos/ without uploading)'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run (test without uploading)'
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  chimp_fi_us_ip_job:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install System Dependencies (FFmpeg, rclone & Impact Font)
+        run: |
+          sudo apt-get update -y
+          echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | sudo debconf-set-selections
+          sudo apt-get install -y ffmpeg rclone jq fonts-dejavu-core fonts-freefont-ttf ttf-mscorefonts-installer || sudo apt-get install -y ffmpeg rclone jq fonts-dejavu-core fonts-freefont-ttf
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install Pillow google-api-python-client google-auth-httplib2 google-auth-oauthlib requests python-dotenv
+
+      - name: Configure rclone Silently
+        env:
+          ENGINE_TOKEN_RAW: ${{ secrets.G_DRIVE_TOKEN_ENGINE || secrets.G_DRIVE_TOKEN }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        run: |
+          mkdir -p ~/.config/rclone
+          E_ACCESS=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.token // .access_token')
+          E_REFRESH=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.refresh_token')
+          E_EXPIRY=$(echo "$ENGINE_TOKEN_RAW" | jq -r '.expiry')
+          ENGINE_TOKEN="{\"access_token\":\"$E_ACCESS\",\"token_type\":\"Bearer\",\"refresh_token\":\"$E_REFRESH\",\"expiry\":\"$E_EXPIRY\"}"
+
+          cat << EOF > ~/.config/rclone/rclone.conf
+          [engine]
+          type = drive
+          client_id = $CLIENT_ID
+          client_secret = $CLIENT_SECRET
+          scope = drive
+          token = $ENGINE_TOKEN
+          EOF
+          echo "[+] rclone configured successfully."
+
+      - name: Pull Chimp-Fi Pipeline & Tokens from Google Drive
+        run: |
+          mkdir -p chimp_fi_pipeline/tokens
+          echo "[*] Syncing chimp_fi_pipeline from Google Drive..."
+          rclone copy --tpslimit 10 --retries 5 --exclude "uploaded/**" "engine:chimp_fi_pipeline" "./chimp_fi_pipeline" -v || true
+
+          echo "[*] Syncing Chimp-Fi YouTube OAuth Token, Schedule Tracker & SmartGeminiKeyRing..."
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/tokens/Chimp-Fi_token.json" "./chimp_fi_pipeline/tokens/" -v || true
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/tokens/schedule_tracker.json" "./chimp_fi_pipeline/tokens/" -v || true
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "./chimp_fi_pipeline/" -v 2>/dev/null || true
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/.env" "./chimp_fi_pipeline/" -v 2>/dev/null || true
+
+      - name: Execute Chimp-Fi Pipeline from US IP (Checks Processed Videos/ First)
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          UPLOAD_ONLY: ${{ inputs.upload_only }}
+          RENDER_ONLY: ${{ inputs.render_only }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ "$UPLOAD_ONLY" = "true" ]; then
+            ARGS="$ARGS --upload-only"
+          fi
+          if [ "$RENDER_ONLY" = "true" ]; then
+            ARGS="$ARGS --render-only"
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+
+          echo "[*] Running chimp_fi_engine.py from GitHub US IP with arguments: $ARGS"
+          python -u chimp_fi_pipeline/chimp_fi_engine.py $ARGS
+
+      - name: Sync Uploaded Videos, Processed Queue & Schedules Back to Google Drive
+        if: always()
+        run: |
+          echo "[*] Syncing uploaded/ archive back to Google Drive..."
+          rclone copy --tpslimit 10 --retries 5 "./chimp_fi_pipeline/uploaded" "engine:chimp_fi_pipeline/uploaded" -v || true
+
+          echo "[*] Syncing Processed Videos/ queue state back to Google Drive..."
+          rclone sync --tpslimit 10 --retries 5 "./chimp_fi_pipeline/Processed Videos" "engine:chimp_fi_pipeline/Processed Videos" -v || true
+
+          echo "[*] Syncing Videos to use/ queue state back to Google Drive..."
+          rclone sync --tpslimit 10 --retries 5 "./chimp_fi_pipeline/Videos to use" "engine:chimp_fi_pipeline/Videos to use" -v || true
+
+          echo "[*] Persisting chimp_state.json, chimp_schedule.json & schedule_tracker.json..."
+          rclone copy --tpslimit 10 --retries 5 "./chimp_fi_pipeline/chimp_state.json" "engine:chimp_fi_pipeline/" -v || true
+          rclone copy --tpslimit 10 --retries 5 "./chimp_fi_pipeline/chimp_schedule.json" "engine:chimp_fi_pipeline/" -v || true
+          rclone copy --tpslimit 10 --retries 5 "./chimp_fi_pipeline/tokens/schedule_tracker.json" "engine:Colab_AutoVideoCreator/tokens/" -v || true
+          rclone copy --tpslimit 10 --retries 5 "./chimp_fi_pipeline/tokens/Chimp-Fi_token.json" "engine:Colab_AutoVideoCreator/tokens/" -v || true
+          echo "[+] Google Drive sync complete."

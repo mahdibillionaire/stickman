@@ -88,6 +88,7 @@ jobs:
           echo "[*] Syncing Scenti-Fi YouTube OAuth Token & Cookies..."
           rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/tokens/Scenti-Fi_token.json" "./zack_pipeline/tokens/" -v || true
           rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/youtube_cookies.txt" "./zack_pipeline/" -v 2>/dev/null || true
+          rclone copy --tpslimit 10 --retries 5 "engine:Colab_AutoVideoCreator/smart_gemini_keyring.py" "./zack_pipeline/" -v 2>/dev/null || true
 
       - name: Execute Autonomous Reaction Engine
         env:

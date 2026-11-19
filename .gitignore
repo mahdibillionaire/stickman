@@ -4,6 +4,7 @@ node_modules/
 *.py
 *.pyc
 __pycache__/
+zack_pipeline/zack_catalog.json
 !.github/scripts/orchestrator.py
 !apex_radar_core/**
 !apex_radar_core/**/*.py
