@@ -1,4 +1,4 @@
-name: "Chimp-Fi Reaction Pipeline - 1-Click Full Run (US IP)"
+name: "Chimp-Fi Reaction Pipeline"
 
 on:
   workflow_dispatch:
