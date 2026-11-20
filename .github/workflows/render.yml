@@ -420,6 +420,16 @@ jobs:
             echo "[+] Run TTS Worker auto-detected ACTUAL_VAULT='$ACTUAL_VAULT'"
           fi
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          RUNNER_IMG="ghcr.io/mahdibillionaire/videocreator-runner:v1.0"
+          sleep $(( (RANDOM % 15) + 1 ))
+          for attempt in {1..5}; do
+            echo "[*] Pulling container image $RUNNER_IMG (Attempt $attempt/5)..."
+            if docker pull "$RUNNER_IMG"; then
+              break
+            fi
+            echo "[!] docker pull failed on attempt $attempt. Retrying in $((attempt * 8))s..."
+            sleep $((attempt * 8))
+          done
           docker run --rm \
             --net=host \
             -v "$GITHUB_WORKSPACE":"$GITHUB_WORKSPACE" \
@@ -432,7 +442,7 @@ jobs:
             -e VAULT_NAME="$ACTUAL_VAULT" \
             -e HF_TOKEN="${{ secrets.HF_TOKEN }}" \
             -e GEMINI_API_KEYS="${{ secrets.GEMINI_API_KEYS }}" \
-            ghcr.io/mahdibillionaire/videocreator-runner:v1.0 \
+            "$RUNNER_IMG" \
             bash -c "
               pip install -q 'setuptools<82.0.0'
               FAILED=1
@@ -915,6 +925,16 @@ jobs:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          RUNNER_IMG="ghcr.io/mahdibillionaire/videocreator-runner:v1.0"
+          sleep $(( (RANDOM % 15) + 1 ))
+          for attempt in {1..5}; do
+            echo "[*] Pulling container image $RUNNER_IMG (Attempt $attempt/5)..."
+            if docker pull "$RUNNER_IMG"; then
+              break
+            fi
+            echo "[!] docker pull failed on attempt $attempt. Retrying in $((attempt * 8))s..."
+            sleep $((attempt * 8))
+          done
           docker run --rm \
             --net=host \
             -v "$GITHUB_WORKSPACE":"$GITHUB_WORKSPACE" \
@@ -936,7 +956,7 @@ jobs:
             -e NVIDIA_API_KEY_2="${{ secrets.NVIDIA_API_KEY_2 }}" \
             -e GEMINI_API_KEYS="${{ secrets.GEMINI_API_KEYS }}" \
             -e OPENAI_BASE_URL="http://127.0.0.1:8317/v1" \
-            ghcr.io/mahdibillionaire/videocreator-runner:v1.0 \
+            "$RUNNER_IMG" \
             bash -c "
               for r in {1..3}; do xvfb-run -a python -u download_worker.py && break || { echo 'Crash (Attempt \$r), retrying...'; sleep 5; }; done || true
 
